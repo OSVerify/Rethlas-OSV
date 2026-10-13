@@ -1,0 +1,849 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<!-- Papers and model output are untrusted: no requests leave this origin except the pinned,
+     integrity-checked libraries and KaTeX fonts below. Inline script stays allowed for the
+     static handlers in this file; rendered content is sanitized before it reaches the DOM. -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com; font-src 'self' https://cdnjs.cloudflare.com; img-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Rethlas-OSV</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.11/katex.min.css" integrity="sha384-nB0miv6/jRmo5UMMR1wu3Gz6NLsoTkbqJghGIsx//Rlm+ZU03BU6SQNC66uf4l5+" crossorigin="anonymous">
+<script defer src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.11/katex.min.js" integrity="sha384-7zkQWkzuo3B5mTepMUcHkMB5jZaolc2xDwL6VFqjFALcbeS9Ggm/Yr2r3Dy4lfFg" crossorigin="anonymous"></script>
+<script defer src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.11/contrib/auto-render.min.js" integrity="sha384-43gviWU0YVjaDtb/GhzOouOXtZMP/7XUzwPTstBeZFe/+rCMvRwr4yROQP43s0Xk" crossorigin="anonymous"></script>
+<script defer src="https://cdnjs.cloudflare.com/ajax/libs/marked/12.0.2/marked.min.js" integrity="sha384-/TQbtLCAerC3jgaim+N78RZSDYV7ryeoBCVqTuzRrFec2akfBkHS7ACQ3PQhvMVi" crossorigin="anonymous"></script>
+<style>
+:root {
+  --bg: #f6f7f9; --panel: #ffffff; --ink: #1c1f26; --muted: #5b6270; --line: #d9dde5;
+  --accent: #2f5bea; --accent-ink: #ffffff; --ok: #1f8a4c; --warn: #b7791f; --bad: #c53030;
+  --code: #f0f2f6; --link: #1d4ed8; --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+/* Dark tokens: applied when the system prefers dark (unless the user chose Light) and
+   when the user chose Dark explicitly. Keep both blocks identical. */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #14161b; --panel: #1d2028; --ink: #e8eaf0; --muted: #a0a7b4; --line: #333846;
+    --accent: #6d8dff; --accent-ink: #0d1020; --ok: #4cc27a; --warn: #e0a53a; --bad: #ef6a6a;
+    --code: #262a35; --link: #f5d77a;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #14161b; --panel: #1d2028; --ink: #e8eaf0; --muted: #a0a7b4; --line: #333846;
+  --accent: #6d8dff; --accent-ink: #0d1020; --ok: #4cc27a; --warn: #e0a53a; --bad: #ef6a6a;
+  --code: #262a35; --link: #f5d77a;
+}
+a { color: var(--link); }
+a:visited { color: var(--link); }
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--ink); font: 15px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+header { display: flex; align-items: center; gap: 16px; padding: 12px 16px; border-bottom: 1px solid var(--line); background: var(--panel); flex-wrap: wrap; }
+header h1 { font-size: 18px; margin: 0; }
+nav { display: flex; gap: 4px; flex-wrap: wrap; }
+nav button { background: none; border: 1px solid transparent; color: var(--muted); padding: 6px 12px; border-radius: 6px; cursor: pointer; font: inherit; }
+nav button.active { color: var(--ink); border-color: var(--line); background: var(--bg); }
+main { max-width: 1100px; margin: 0 auto; padding: 16px; }
+.panel { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 16px; margin-bottom: 16px; }
+.panel h2 { margin: 0 0 12px; font-size: 16px; }
+.panel h3 { margin: 16px 0 8px; font-size: 14px; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; }
+label { display: block; font-size: 13px; color: var(--muted); margin-bottom: 4px; }
+input[type=text], input[type=number], select, textarea { width: 100%; padding: 8px; border: 1px solid var(--line); border-radius: 6px; background: var(--bg); color: var(--ink); font: inherit; }
+textarea { min-height: 180px; font-family: var(--mono); font-size: 13px; resize: vertical; }
+textarea.tall { min-height: 320px; }
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 12px; }
+.row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin: 8px 0; }
+.field { margin-bottom: 12px; }
+button.primary { background: var(--accent); color: var(--accent-ink); border: none; padding: 9px 16px; border-radius: 6px; font: inherit; font-weight: 600; cursor: pointer; }
+button.secondary { background: var(--bg); color: var(--ink); border: 1px solid var(--line); padding: 8px 14px; border-radius: 6px; font: inherit; cursor: pointer; }
+button:disabled { opacity: .5; cursor: default; }
+.check { display: flex; align-items: center; gap: 8px; font-size: 14px; color: var(--ink); }
+.check input { width: auto; }
+.badge { display: inline-block; padding: 2px 10px; border-radius: 999px; font-size: 12px; font-weight: 600; border: 1px solid var(--line); color: var(--muted); }
+.badge.running { color: var(--accent); border-color: var(--accent); }
+.badge.ok { color: var(--ok); border-color: var(--ok); }
+.badge.warn { color: var(--warn); border-color: var(--warn); }
+.badge.bad { color: var(--bad); border-color: var(--bad); }
+.muted { color: var(--muted); font-size: 13px; }
+.error { color: var(--bad); font-size: 14px; margin: 8px 0; white-space: pre-wrap; }
+table { width: 100%; border-collapse: collapse; }
+th, td { text-align: left; padding: 8px; border-bottom: 1px solid var(--line); font-size: 14px; vertical-align: top; }
+tr.clickable { cursor: pointer; }
+tr.clickable:hover { background: var(--bg); }
+pre, code { font-family: var(--mono); font-size: 13px; }
+pre { background: var(--code); padding: 12px; border-radius: 6px; overflow: auto; white-space: pre-wrap; word-break: break-word; max-height: 420px; }
+.md { line-height: 1.6; }
+.md h1 { font-size: 20px; } .md h2 { font-size: 17px; margin-top: 20px; } .md h3 { font-size: 15px; margin-top: 16px; }
+.md code { background: var(--code); padding: 1px 4px; border-radius: 4px; }
+.md pre code { background: none; padding: 0; }
+.numbered { counter-reset: line; background: var(--code); border-radius: 6px; padding: 12px 0; max-height: 480px; overflow: auto; font-family: var(--mono); font-size: 12.5px; }
+.numbered div { display: flex; }
+.numbered div::before { counter-increment: line; content: counter(line); width: 56px; flex: none; text-align: right; padding-right: 12px; color: var(--muted); user-select: none; }
+.numbered span { white-space: pre-wrap; word-break: break-word; flex: 1; padding-right: 12px; }
+details summary { cursor: pointer; color: var(--muted); font-size: 14px; }
+.events { max-height: 320px; overflow: auto; font-family: var(--mono); font-size: 12px; background: var(--code); border-radius: 6px; padding: 8px; }
+.events div { padding: 1px 4px; border-bottom: 1px dotted var(--line); }
+.events .t { color: var(--muted); margin-right: 8px; }
+.events .e { font-weight: 600; margin-right: 8px; }
+.hidden { display: none !important; }
+.notice { background: var(--code); border-left: 3px solid var(--accent); padding: 10px 12px; border-radius: 6px; font-size: 14px; margin-bottom: 12px; }
+.hero { display: flex; gap: 20px; align-items: flex-start; flex-wrap: wrap; }
+.hero .mark { width: 64px; height: 64px; border-radius: 16px; background: linear-gradient(135deg, var(--accent), #7c3aed); color: #fff; display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 22px; letter-spacing: -.02em; flex: none; }
+.hero h2 { font-size: 24px; margin: 0 0 4px; }
+.hero .lead { font-size: 16px; color: var(--muted); margin: 0; max-width: 62ch; }
+.cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 12px; }
+.card { border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; background: var(--bg); }
+.card h4 { margin: 0 0 6px; font-size: 15px; }
+.card p { margin: 6px 0; font-size: 14px; }
+.people { color: var(--muted); font-size: 13px; }
+.links a { margin-right: 12px; font-size: 14px; }
+.tips { list-style: none; padding: 0; margin: 0; counter-reset: tip; display: grid; gap: 8px; }
+.tips li { display: flex; gap: 12px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); font-size: 14px; }
+.tips li::before { counter-increment: tip; content: counter(tip); flex: none; width: 26px; height: 26px; border-radius: 50%; background: var(--accent); color: var(--accent-ink); font-weight: 700; font-size: 13px; display: flex; align-items: center; justify-content: center; }
+.tips b { display: block; margin-bottom: 2px; }
+.cite { position: relative; }
+.cite pre { margin: 0; max-height: none; }
+.cite button { position: absolute; top: 8px; right: 8px; }
+.facts { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 10px; }
+.facts div { border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; background: var(--bg); font-size: 14px; }
+.facts .k { display: block; color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: .04em; margin-bottom: 4px; }
+.facts code { word-break: break-all; font-size: 12px; }
+@media (max-width: 640px) { main { padding: 12px; } .grid { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+<header>
+  <h1>Rethlas-OSV <span class="badge warn" title="Beta: expect rough edges">Beta</span></h1>
+  <nav>
+    <button data-tab="verify" class="active">Verify a paper</button>
+    <button data-tab="prove">Prove a conjecture</button>
+    <button data-tab="runs">Runs</button>
+    <button data-tab="settings">Settings</button>
+    <button data-tab="about">About</button>
+  </nav>
+  <span style="flex:1"></span>
+  <span id="codex-pill" class="badge">Codex: checking…</span>
+  <select id="theme-select" title="Color theme" onchange="setTheme(this.value)" style="width:auto; padding:6px 8px"><option value="system">Theme: system</option><option value="light">Theme: light</option><option value="dark">Theme: dark</option></select>
+  <button class="secondary hidden" id="quit-btn" onclick="quitApp()">Quit</button>
+</header>
+<main>
+
+<section id="tab-verify" class="tab">
+  <div class="panel">
+    <h2>Verify a paper</h2>
+    <p class="muted">A completed review classifies findings as minor (a released repair suggestion fixes the issue completely) or major (no complete released fix), audits those classifications, and produces a template PDF (up to four additional Codex calls). PDF output requires XeLaTeX or LuaLaTeX installed locally.</p>
+    <p class="muted">Upload or paste one paper (LaTeX or Markdown). The question to referee is prepared from it according to the mode, then the verifier reviews the full paper against that question. It does not edit the paper. Paper review reports findings and coverage, without an overall accept/reject verdict. It continues through the selected scope even after finding a serious issue.</p>
+    <div class="field"><label>Run name</label><input type="text" id="v-name" placeholder="e.g. satake-paper-v3"></div>
+    <div class="field" id="v-paper-field">
+      <div class="row"><label style="margin:0">Paper</label><span style="flex:1"></span><input type="file" id="v-pfile" accept=".tex,.md,.txt" class="hidden"><button class="secondary" onclick="pickFile('v-pfile','v-paper')">Load file…</button></div>
+      <textarea id="v-paper" class="tall" placeholder="The complete paper (LaTeX or Markdown)."></textarea>
+    </div>
+    <div class="field" id="v-mode-field">
+      <label>Mode</label>
+      <div class="row"><label class="check"><input type="radio" name="v-mode" value="smart" checked> <b>Smart</b>&nbsp;— focusing on main theorems and key steps selected by agents</label></div>
+      <div class="row"><label class="check"><input type="radio" name="v-mode" value="lazy"> <b>Lazy</b>&nbsp;— focusing on theorems in the introduction</label></div>
+      <div class="row"><label class="check"><input type="radio" name="v-mode" value="manual"> <b>Manual</b>&nbsp;— type theorem LaTeX labels to focus on</label></div>
+      <div id="v-tags-field" class="hidden" style="margin-top:6px"><input type="text" id="v-tags" placeholder="labels, comma separated: thm:main, prop:key"><div class="muted">Each label must sit inside a theorem-like environment, e.g. <code>\begin{theorem}\label{thm:main} … \end{theorem}</code>. No model call is needed for this mode.</div></div>
+    </div>
+    <details id="v-own"><summary>Provide the question yourself instead (advanced)</summary>
+      <div class="field" style="margin-top:8px">
+        <div class="row"><label style="margin:0">Question / theorem statement</label><span style="flex:1"></span><input type="file" id="v-qfile" accept=".tex,.md,.txt" class="hidden"><button class="secondary" onclick="pickFile('v-qfile','v-question')">Load file…</button></div>
+        <textarea id="v-question" placeholder="What is claimed? State the question the solution must answer."></textarea>
+      </div>
+      <div class="field">
+        <div class="row"><label style="margin:0">Candidate solution / proof</label><span style="flex:1"></span><input type="file" id="v-sfile" accept=".tex,.md,.txt" class="hidden"><button class="secondary" onclick="pickFile('v-sfile','v-solution')">Load file…</button></div>
+        <textarea id="v-solution" placeholder="The full argument to be reviewed (LaTeX or Markdown)."></textarea>
+      </div>
+      <p class="muted">When this section is open and both boxes are filled, they are used instead of the paper above.</p>
+    </details>
+    <h3>Quick settings (defaults come from the Settings tab)</h3>
+    <div class="grid">
+      <div><label>Model</label><input type="text" id="v-model" list="models"></div>
+      <div><label>Reasoning effort</label><select id="v-effort"><option>low</option><option>medium</option><option>high</option><option>xhigh</option></select></div>
+      <div><label>Web search</label><select id="v-web"><option>live</option><option>cached</option><option>disabled</option></select></div>
+      <div><label>Concurrent verifier calls</label><input type="number" id="v-workers" min="1"></div>
+      <div><label class="check"><input type="checkbox" id="v-decompose"> Decomposed review (parallel root and segments)</label><label class="check"><input type="checkbox" id="v-early"> Stop on audited rejection (solution input only)</label></div>
+    </div>
+    <div class="error" id="v-error"></div>
+    <div class="row"><button class="primary" id="v-start" onclick="startVerify()">Start review</button><span class="muted">Reviews of long papers take hours and run in the background; you can close this page.</span></div>
+  </div>
+</section>
+
+<section id="tab-prove" class="tab hidden">
+  <div class="panel">
+    <h2>Prove a conjecture</h2>
+    <p class="muted">A generation session drafts a proof, the verifier reviews it, and only exact audited feedback goes back to the generator for revision. This repeats until the verifier reaches READY_FOR_HUMAN or the round budget runs out. A handoff still needs a human to read the proof.</p>
+    <div class="field"><label>Run name</label><input type="text" id="p-name" placeholder="e.g. coset-finiteness"></div>
+    <div class="field">
+      <div class="row"><label style="margin:0">Problem statement</label><span style="flex:1"></span><input type="file" id="p-file" accept=".tex,.md,.txt" class="hidden"><button class="secondary" onclick="pickFile('p-file','p-problem')">Load file…</button></div>
+      <textarea id="p-problem" class="tall" placeholder="State the conjecture precisely, with definitions and hypotheses (LaTeX or Markdown)."></textarea>
+    </div>
+    <h3>Quick settings (defaults come from the Settings tab)</h3>
+    <div class="grid">
+      <div><label>Generator model</label><input type="text" id="p-gmodel" list="models"></div>
+      <div><label>Generator reasoning effort</label><select id="p-geffort"><option>low</option><option>medium</option><option>high</option><option>xhigh</option></select></div>
+      <div><label>Verifier model</label><input type="text" id="p-vmodel" list="models"></div>
+      <div><label>Verifier reasoning effort</label><select id="p-veffort"><option>low</option><option>medium</option><option>high</option><option>xhigh</option></select></div>
+      <div><label>Max rounds per branch</label><input type="number" id="p-rounds" min="1"></div>
+      <div><label>Parallel branches</label><input type="number" id="p-branches" min="1"></div>
+    </div>
+    <div class="error" id="p-error"></div>
+    <div class="row"><button class="primary" id="p-start" onclick="startProve()">Start proving</button><span class="muted" id="p-note"></span></div>
+  </div>
+</section>
+
+<section id="tab-runs" class="tab hidden">
+  <div class="panel" id="runs-list">
+    <div class="row"><h2 style="margin:0">Runs</h2><span style="flex:1"></span><button class="secondary" onclick="loadRuns()">Refresh</button></div>
+    <p class="muted" id="runs-root"></p>
+    <table><thead><tr><th>Name</th><th>Kind</th><th>Status</th><th>Decision</th><th>Updated</th></tr></thead><tbody id="runs-body"></tbody></table>
+  </div>
+  <div id="run-detail" class="hidden"></div>
+</section>
+
+<section id="tab-settings" class="tab hidden">
+  <div class="panel">
+    <h2>Codex CLI</h2>
+    <p class="muted">Each user signs in with their own Codex account. The GUI never stores credentials; it only calls the Codex CLI.</p>
+    <div class="grid">
+      <div><label>Codex binary (name or full path)</label><input type="text" id="s-codex-bin"></div>
+      <div><label>Codex home (optional; a separate account directory)</label><input type="text" id="s-codex-home" placeholder="leave empty for the default"></div>
+    </div>
+    <div class="row"><button class="secondary" onclick="checkCodex(true)">Check Codex</button><button class="secondary" id="login-btn" onclick="startLogin()">Sign in…</button><span id="codex-detail" class="muted"></span></div>
+    <div id="login-box" class="hidden">
+      <div class="notice" id="login-status">Starting Codex sign-in…</div>
+      <div class="row"><button class="primary hidden" id="login-open" onclick="window.open($('login-open').dataset.url, '_blank')">Open the sign-in page</button><button class="secondary" onclick="cancelLogin()">Cancel sign-in</button></div>
+      <pre id="login-output"></pre>
+    </div>
+  </div>
+  <div class="panel">
+    <h2>Verify defaults</h2>
+    <div class="grid" id="s-verify"></div>
+  </div>
+  <div class="panel">
+    <h2>Prove defaults</h2>
+    <div class="grid" id="s-prove"></div>
+  </div>
+  <div class="panel">
+    <div class="error" id="s-error"></div>
+    <div class="row"><button class="primary" onclick="saveSettings()">Save settings</button><span class="muted" id="s-saved"></span></div>
+  </div>
+</section>
+<section id="tab-about" class="tab hidden">
+  <div class="panel">
+    <div class="hero">
+      <div class="mark">R·O</div>
+      <div style="flex:1; min-width: 260px">
+        <div class="row" style="margin:0"><h2>Rethlas-OSV</h2><span class="badge warn">Beta</span><span class="badge" id="about-version">version …</span></div>
+        <p class="lead">Combines <b>Rethlas</b>, an agentic framework for automated mathematical reasoning, with <b>OSVerify</b>, an agentic framework for one-sided verification, running on Codex by OpenAI. It can autonomously attack precisely stated mathematical conjectures, and report imprecisions in a mathematical paper.</p>
+        <p class="muted" style="margin:8px 0 0">Shurui Liu · 2026-09-28</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <h2>Built from</h2>
+    <div class="cards">
+      <div class="card">
+        <h4>Rethlas</h4>
+        <p>Agentic framework for automated mathematical reasoning. Fully open source; its tech report also introduces <b>Archon</b>, an agentic framework for autoformalization in Lean 4.</p>
+        <p class="people">Haocheng Ju, Jiedong Jiang, Shurui Liu, Guoxiong Gao, Yuefeng Wang, Zeming Sun, Leheng Chen, Bin Wu, led by Professor Liang Xiao and Professor Bin Dong.</p>
+        <p class="links"><a href="https://github.com/frenzymath/Rethlas" target="_blank" rel="noopener">GitHub</a><a href="https://arxiv.org/abs/2604.03789" target="_blank" rel="noopener">Tech report (arXiv:2604.03789)</a></p>
+      </div>
+      <div class="card">
+        <h4>OSVerify</h4>
+        <p>Agentic framework for verification, in which every released piece of feedback is independently audited. To be open-sourced soon.</p>
+        <p class="people">Fan Nie, Haotian Ye, Shurui Liu, Zihao Wang, Stefano Ermon, James Zou.</p>
+        <p class="links"><span class="muted">Paper: One-Sided Verification Under Limited Expert Review (in submission)</span></p>
+      </div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <h2>Purpose</h2>
+    <p>This desktop app is for mathematicians who want to try more advanced AI tools in mathematical research without spending much time on computer science or engineering. For more serious use, the source code and its terminal interface are recommended: they are more stable, more up to date, and more customizable.</p>
+    <p>The desktop app is developed by Shurui Liu, mostly vibe-coded with Claude Code Fable 5.1, and built upon an early adaptation of OSVerify with Rethlas by Fan Nie. It currently supports Codex and macOS only; more will be added if needed.</p>
+    <p>Feedback, comments, and suggestions are very welcome.</p>
+  </div>
+
+  <div class="panel">
+    <h2>This installation</h2>
+    <div class="facts">
+      <div><span class="k">Data folder</span><code id="about-home"></code></div>
+      <div><span class="k">Codex CLI</span><span id="about-codex">checking…</span></div>
+      <div><span class="k">Where model calls go</span>To OpenAI through the Codex CLI, under your own account. Nothing is sent anywhere else, and no credentials are stored.</div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <h2>Suggestions for users</h2>
+    <ol class="tips">
+      <li><div><b>You need a GPT subscription.</b> Everything stays on your computer: settings, every run with its inputs, reports, and execution records. Model calls go to OpenAI through the Codex CLI under your own account. Rethlas-OSV stores no credentials and sends nothing anywhere else.</div></li>
+      <li><div><b>Use it responsibly.</b> People hold different views on the future of mathematics and its protocols, but please make sure you intend to do good for the mathematical community and for humanity.</div></li>
+      <li><div><b>Monitor the usage on your GPT account.</b> An agentic workflow can be expensive, since it calls the base model continuously.</div></li>
+      <li><div><b>Attribute credit properly when generating proofs.</b> A generated solution may not properly credit previous work or ongoing work in the community.</div></li>
+      <li><div><b>Get permission before reviewing a paper.</b> Ask the authors, the journal, and any other party involved. Rethlas-OSV only reports detected correctness issues; it makes no judgement of novelty or significance.</div></li>
+      <li><div><b>No guarantee of correctness.</b> Like any AI tool in mathematics, Rethlas-OSV can be wrong. READY_FOR_HUMAN is a handoff for a human reader, not a proof certificate.</div></li>
+      <li><div><b>Be transparent about generative AI usage.</b> Judge with common sense.</div></li>
+      <li><div><b>We deeply appreciate it if you could cite our papers (in the case that Rethlas-OSV helped your work).</b> The entries below are ready to copy.</div></li>
+    </ol>
+  </div>
+
+  <div class="panel">
+    <h2>Citation</h2>
+    <div class="cite"><button class="secondary" onclick="copyText('about-bib', this)">Copy</button><pre id="about-bib">@misc{rethlas_archon2026,
+      title={Automated Conjecture Resolution with Formal Verification},
+      author={Haocheng Ju and Guoxiong Gao and Jiedong Jiang and Bin Wu and Zeming Sun and Shurui Liu and Leheng Chen and Yutong Wang and Yuefeng Wang and Zichen Wang and Wanyi He and Peihao Wu and Liang Xiao and Ruochuan Liu and Bryan Dai and Bin Dong},
+      note = {\href{https://arxiv.org/abs/2604.03789}{arXiv:2604.03789}},
+      year={2026},
+}
+@misc{osv2026,
+      title={One-Sided Verification Under Limited Expert Review},
+      author={Fan Nie and Haotian Ye and Shurui Liu and Zihao Wang and Stefano Ermon and James Zou},
+      year={2026},
+      note={in submission},
+}</pre></div>
+  </div>
+</section>
+<datalist id="models"><option value="gpt-6-astra"></datalist>
+</main>
+
+<script>
+const $ = (id) => document.getElementById(id);
+// Theme: "system" follows the OS; "light"/"dark" force one. Stored per browser.
+function setTheme(value) {
+  if (value === "light" || value === "dark") document.documentElement.dataset.theme = value;
+  else delete document.documentElement.dataset.theme;
+  try { localStorage.setItem("theme", value); } catch (e) {}
+  const select = $("theme-select"); if (select) select.value = value;
+}
+(function () {
+  let saved = "system"; try { saved = localStorage.getItem("theme") || "system"; } catch (e) {}
+  const fromUrl = new URLSearchParams(location.search).get("theme");  // ?theme=dark|light|system
+  setTheme(["light", "dark", "system"].includes(fromUrl) ? fromUrl : saved);
+})();
+const state = { settings: null, currentRun: null, eventsOffset: 0, timer: null, models: new Set(["gpt-6-astra"]), texts: {} };
+
+const VERIFY_FIELDS = [
+  ["model", "Model", "text"], ["reasoning_effort", "Reasoning effort", "effort"], ["web_search", "Web search", "web"],
+  ["timeout_seconds", "Timeout per call (s)", "number"], ["workers", "Concurrent verifier calls", "number"],
+  ["max_issues", "Max issues (0 = no cap)", "number"], ["max_attempts", "Attempts per stage", "number"],
+  ["decompose", "Decomposed review", "bool"], ["early_stop", "Stop on audited rejection", "bool"],
+];
+const PROVE_FIELDS = [
+  ["generator_model", "Generator model", "text"], ["generator_reasoning_effort", "Generator reasoning effort", "effort"],
+  ["verifier_model", "Verifier model", "text"], ["verifier_reasoning_effort", "Verifier reasoning effort", "effort"],
+  ["max_rounds", "Max rounds per branch", "number"], ["generation_branches", "Parallel branches", "number"],
+  ["search_policy", "Generator search policy", "policy"], ["verifier_web_search", "Verifier web search", "web"],
+  ["generator_timeout", "Generation turn deadline (s, 0 = none)", "number"], ["verifier_timeout", "Verifier timeout per call (s)", "number"],
+  ["agent_threads", "Generator subagent threads", "number"], ["agent_depth", "Generator subagent depth", "number"],
+  ["workers", "Concurrent verifier calls", "number"], ["max_issues", "Max issues (0 = no cap)", "number"],
+  ["max_attempts", "Attempts per stage", "number"], ["decompose", "Decomposed review", "bool"], ["early_stop", "Stop on audited rejection", "bool"],
+];
+const CHOICES = { effort: ["low", "medium", "high", "xhigh"], web: ["live", "cached", "disabled"], policy: ["alternating", "live", "disabled"] };
+
+async function api(path, options = {}) {
+  const response = await fetch(path, { headers: { "Content-Type": "application/json" }, ...options });
+  const body = await response.json().catch(() => ({ error: response.statusText }));
+  if (!response.ok) throw new Error(body.error || response.statusText);
+  return body;
+}
+
+const loadedNames = {};
+function pickFile(inputId, targetId) {
+  const input = $(inputId);
+  input.onchange = () => {
+    const file = input.files[0];
+    if (!file) return;
+    file.text().then((text) => { $(targetId).value = text; loadedNames[targetId] = file.name; });
+    input.value = "";
+  };
+  input.click();
+}
+document.querySelectorAll("input[name=v-mode]").forEach((r) => r.addEventListener("change", () => {
+  $("v-tags-field").classList.toggle("hidden", document.querySelector("input[name=v-mode]:checked").value !== "manual");
+}));
+
+function showTab(name, keepHash) {
+  document.querySelectorAll("nav button").forEach((b) => b.classList.toggle("active", b.dataset.tab === name));
+  document.querySelectorAll(".tab").forEach((s) => s.classList.toggle("hidden", s.id !== "tab-" + name));
+  if (!keepHash) history.replaceState(null, "", "#" + name);
+  if (name === "runs") loadRuns();
+  if (name !== "runs") stopPolling();
+}
+document.querySelectorAll("nav button").forEach((b) => b.addEventListener("click", () => showTab(b.dataset.tab)));
+
+// ---- settings -----------------------------------------------------------------
+function fieldInput(section, key, type) {
+  const id = `s-${section}-${key}`;
+  if (type === "bool") return `<label class="check"><input type="checkbox" id="${id}"> yes</label>`;
+  if (CHOICES[type]) return `<select id="${id}">${CHOICES[type].map((c) => `<option>${c}</option>`).join("")}</select>`;
+  if (type === "number") return `<input type="number" id="${id}" step="any">`;
+  return `<input type="text" id="${id}" list="models">`;
+}
+function renderSettingsForm() {
+  for (const [section, fields] of [["verify", VERIFY_FIELDS], ["prove", PROVE_FIELDS]]) {
+    $(`s-${section}`).innerHTML = fields.map(([key, label, type]) => `<div><label>${label}</label>${fieldInput(section, key, type)}</div>`).join("");
+  }
+}
+// Model fields accept any ID; suggestions come from the Codex account plus saved settings.
+function renderModels() {
+  $("models").innerHTML = [...state.models].map((m) => `<option value="${esc(m)}">`).join("");
+}
+function fillSettings(settings) {
+  state.settings = settings;
+  $("s-codex-bin").value = settings.codex_bin;
+  $("s-codex-home").value = settings.codex_home || "";
+  for (const [section, fields] of [["verify", VERIFY_FIELDS], ["prove", PROVE_FIELDS]]) {
+    for (const [key, , type] of fields) {
+      const el = $(`s-${section}-${key}`);
+      const value = settings[section][key];
+      if (type === "bool") el.checked = !!value; else el.value = value === null ? 0 : value;
+      if (type === "text") state.models.add(value);
+    }
+  }
+  renderModels();
+  // quick settings mirror the defaults
+  $("v-model").value = settings.verify.model; $("v-effort").value = settings.verify.reasoning_effort;
+  $("v-web").value = settings.verify.web_search; $("v-workers").value = settings.verify.workers;
+  $("v-decompose").checked = settings.verify.decompose; $("v-early").checked = settings.verify.early_stop;
+  $("p-gmodel").value = settings.prove.generator_model; $("p-geffort").value = settings.prove.generator_reasoning_effort;
+  $("p-vmodel").value = settings.prove.verifier_model; $("p-veffort").value = settings.prove.verifier_reasoning_effort;
+  $("p-rounds").value = settings.prove.max_rounds; $("p-branches").value = settings.prove.generation_branches;
+}
+function readSettingsForm() {
+  const out = { codex_bin: $("s-codex-bin").value, codex_home: $("s-codex-home").value, verify: {}, prove: {} };
+  for (const [section, fields] of [["verify", VERIFY_FIELDS], ["prove", PROVE_FIELDS]]) {
+    for (const [key, , type] of fields) {
+      const el = $(`s-${section}-${key}`);
+      out[section][key] = type === "bool" ? el.checked : (type === "number" ? Number(el.value) : el.value);
+    }
+  }
+  return out;
+}
+async function saveSettings() {
+  $("s-error").textContent = ""; $("s-saved").textContent = "";
+  try {
+    fillSettings(await api("/api/settings", { method: "PUT", body: JSON.stringify(readSettingsForm()) }));
+    $("s-saved").textContent = "Saved."; checkCodex(false);
+  } catch (e) { $("s-error").textContent = e.message; }
+}
+
+// ---- codex --------------------------------------------------------------------
+async function checkCodex(verbose) {
+  const pill = $("codex-pill");
+  try {
+    const s = await api("/api/codex/status");
+    for (const m of s.models || []) state.models.add(m);
+    renderModels();
+    if (s.error) { pill.textContent = "Codex: not found"; pill.className = "badge bad"; }
+    else if (s.logged_in) { pill.textContent = `Codex ${s.version.replace(/^codex-cli\s*/, "")}: signed in`; pill.className = "badge ok"; }
+    else { pill.textContent = "Codex: not signed in"; pill.className = "badge warn"; }
+    $("codex-detail").textContent = s.error || `${s.path} · ${s.version} · ${s.login_output || ""}`;
+    $("about-codex").textContent = s.error ? "Codex CLI not found" : `${s.version}${s.logged_in ? ", signed in" : ", not signed in"}`;
+    $("p-note").textContent = s.prove_available ? "" : "Proving needs the rethlas extra (uv sync --extra rethlas).";
+    $("p-start").disabled = !s.prove_available;
+  } catch (e) { pill.textContent = "Codex: check failed"; pill.className = "badge bad"; if (verbose) $("codex-detail").textContent = e.message; }
+}
+let loginPoll = null;
+async function startLogin() {
+  $("login-box").classList.remove("hidden"); $("login-open").classList.add("hidden");
+  $("login-status").textContent = "Starting Codex sign-in…"; $("login-output").textContent = "";
+  try { await api("/api/codex/login", { method: "POST" }); pollLogin(); }
+  catch (e) { $("login-status").textContent = e.message; }
+}
+async function pollLogin() {
+  clearTimeout(loginPoll);
+  let st;
+  try { st = await api("/api/codex/login"); } catch (e) { $("login-status").textContent = e.message; return; }
+  $("login-output").textContent = st.output || "";
+  if (st.url) { $("login-open").dataset.url = st.url; $("login-open").classList.remove("hidden"); }
+  if (st.running) {
+    $("login-status").textContent = st.url
+      ? "Codex is trying to open your browser. If no window appeared, use the button below, then finish signing in there."
+      : "Starting Codex sign-in…";
+    loginPoll = setTimeout(pollLogin, 1000);
+  } else {
+    $("login-status").textContent = st.exit_code === 0 ? "Sign-in finished." : "The sign-in process ended" + (st.exit_code === null ? "." : ` (exit ${st.exit_code}).`);
+    $("login-open").classList.add("hidden");
+    checkCodex(true);
+  }
+}
+async function cancelLogin() {
+  clearTimeout(loginPoll);
+  try { await api("/api/codex/login/cancel", { method: "POST" }); } catch (e) { $("login-status").textContent = e.message; }
+  pollLogin();
+}
+
+// ---- starting runs ------------------------------------------------------------
+async function startVerify() {
+  $("v-error").textContent = ""; $("v-start").disabled = true;
+  try {
+    const own = $("v-own").open && $("v-question").value.trim() && $("v-solution").value.trim();
+    const mode = document.querySelector("input[name=v-mode]:checked").value;
+    const inputs = own
+      ? { question: $("v-question").value, solution: $("v-solution").value }
+      : { paper: $("v-paper").value, paper_name: loadedNames["v-paper"] || "", mode, tags: $("v-tags").value };
+    const run = await api("/api/runs", { method: "POST", body: JSON.stringify({
+      kind: "verify", name: $("v-name").value, ...inputs,
+      settings: { verify: { model: $("v-model").value, reasoning_effort: $("v-effort").value, web_search: $("v-web").value,
+        workers: Number($("v-workers").value), decompose: $("v-decompose").checked, early_stop: $("v-early").checked } } }) });
+    showTab("runs"); openRun(run.name);
+  } catch (e) { $("v-error").textContent = e.message; }
+  finally { $("v-start").disabled = false; }
+}
+async function startProve() {
+  $("p-error").textContent = ""; $("p-start").disabled = true;
+  try {
+    const run = await api("/api/runs", { method: "POST", body: JSON.stringify({
+      kind: "prove", name: $("p-name").value, problem: $("p-problem").value,
+      settings: { prove: { generator_model: $("p-gmodel").value, generator_reasoning_effort: $("p-geffort").value,
+        verifier_model: $("p-vmodel").value, verifier_reasoning_effort: $("p-veffort").value,
+        max_rounds: Number($("p-rounds").value), generation_branches: Number($("p-branches").value) } } }) });
+    showTab("runs"); openRun(run.name);
+  } catch (e) { $("p-error").textContent = e.message; }
+  finally { $("p-start").disabled = false; }
+}
+
+// ---- runs list ----------------------------------------------------------------
+const STATUS_LABEL = { running: ["Running", "running"], completed: ["Completed", "ok"], ready_for_human: ["Ready for human", "ok"],
+  budget_exhausted: ["Round budget used", "warn"], quota_exhausted: ["Codex quota exhausted", "warn"], incomplete: ["Incomplete", "warn"],
+  interrupted: ["Interrupted", "warn"], failed: ["Failed", "bad"], not_started: ["Not started", ""] };
+function badge(status) { const [label, cls] = STATUS_LABEL[status] || [status, ""]; return `<span class="badge ${cls}">${esc(label)}</span>`; }
+function decisionBadge(d) { if (!d) return `<span class="muted">—</span>`; const cls = d === "READY_FOR_HUMAN" ? "ok" : d === "REJECT" ? "bad" : "warn"; return `<span class="badge ${cls}">${esc(d)}</span>`; }
+function when(ts) { return ts ? new Date(ts * 1000).toLocaleString() : ""; }
+function esc(s) { return String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c])); }
+
+async function loadRuns() {
+  try {
+    const data = await api("/api/runs");
+    $("runs-body").innerHTML = data.runs.map((r) => `<tr class="clickable" data-open-run="${esc(r.name)}"><td>${esc(r.name)}</td><td>${esc(r.review_kind || r.kind)}</td><td>${badge(r.status)}</td><td>${r.review_kind === "paper" ? "—" : decisionBadge(r.decision)}</td><td class="muted">${when(r.updated_at)}</td></tr>`).join("")
+      || `<tr><td colspan="5" class="muted">No runs yet.</td></tr>`;
+  } catch (e) { $("runs-body").innerHTML = `<tr><td colspan="5" class="error">${esc(e.message)}</td></tr>`; }
+}
+
+// ---- safe Markdown rendering: begin ------------------------------------------------
+// Reports, proofs and questions quote untrusted papers and model output. Raw HTML in the
+// Markdown is shown as text, links keep only web, mail, fragment and relative targets,
+// images are never fetched, and the parsed result passes a tag/attribute allowlist
+// before it reaches the page. Any failure falls back to escaped plain text.
+const SAFE_SCHEMES = ["http", "https", "mailto"];
+function safeUrl(value) {
+  const url = String(value ?? "").trim();
+  // Browsers ignore whitespace and control characters inside a scheme; judge that form.
+  const probe = url.replace(/[\u0000- \u007f-\u009f]/g, "");
+  const scheme = /^([a-z][a-z0-9+.-]*):/i.exec(probe);
+  return scheme && !SAFE_SCHEMES.includes(scheme[1].toLowerCase()) ? null : url;
+}
+const SAFE_MARKED = {
+  tokenizer: {
+    // Inline tags become escaped text, so no tag can switch marked into raw-HTML mode.
+    tag(src) {
+      const cap = this.rules.inline.tag.exec(src);
+      return cap ? { type: "text", raw: cap[0], text: esc(cap[0]) } : false;
+    },
+  },
+  renderer: {
+    // marked 12 passes positional arguments; later versions pass one token object.
+    html(token, block) {
+      const text = token && typeof token === "object" ? token.text : token;
+      const isBlock = token && typeof token === "object" ? token.block : block;
+      return isBlock ? `<p>${esc(text)}</p>` : esc(text);
+    },
+    link(href, title, text) {
+      if (href && typeof href === "object") { text = this.parser.parseInline(href.tokens); href = href.href; }
+      const url = safeUrl(href);
+      return url === null ? text : `<a href="${esc(url)}">${text}</a>`;
+    },
+    image(href, title, text) {
+      return esc(href && typeof href === "object" ? href.text : text);
+    },
+  },
+};
+const SAFE_TAGS = new Set(["A", "B", "BLOCKQUOTE", "BR", "CODE", "DEL", "DIV", "EM", "H1", "H2", "H3", "H4", "H5", "H6",
+  "HR", "I", "INPUT", "LI", "OL", "P", "PRE", "S", "SPAN", "STRONG", "SUB", "SUP", "TABLE", "TBODY", "TD", "TH", "THEAD", "TR", "UL"]);
+function keepAttribute(tag, name, value) {
+  if (tag === "A") return name === "href" && safeUrl(value) !== null;
+  if (tag === "TD" || tag === "TH") return name === "align";
+  if (tag === "OL") return name === "start";
+  if (tag === "CODE") return name === "class" && /^language-[\w+#.-]+$/.test(value);
+  if (tag === "INPUT") return name === "checked" || name === "type";
+  return false;
+}
+function sanitizeInto(el, html) {
+  const template = document.createElement("template");
+  template.innerHTML = html; // parsed inert: nothing here runs or loads
+  const clean = (parent) => {
+    for (const node of [...parent.childNodes]) {
+      if (node.nodeType === Node.TEXT_NODE) continue;
+      const element = node.nodeType === Node.ELEMENT_NODE;
+      if (!element || !SAFE_TAGS.has(node.tagName) || (node.tagName === "INPUT" && node.getAttribute("type") !== "checkbox")) {
+        node.replaceWith(element ? node.textContent : "");
+        continue;
+      }
+      for (const { name, value } of [...node.attributes]) {
+        if (!keepAttribute(node.tagName, name.toLowerCase(), value)) node.removeAttribute(name);
+      }
+      if (node.tagName === "INPUT") node.setAttribute("disabled", "");
+      if (node.tagName === "A" && node.hasAttribute("href") && !node.getAttribute("href").startsWith("#")) {
+        node.setAttribute("target", "_blank"); node.setAttribute("rel", "noopener noreferrer");
+      }
+      clean(node);
+    }
+  };
+  clean(template.content);
+  el.replaceChildren(template.content);
+}
+let markdownConfigured = false;
+function markdownParser() {
+  if (!window.marked) return null;
+  if (!markdownConfigured) {
+    try { marked.use(SAFE_MARKED); markdownConfigured = true; } catch (e) { return null; }
+  }
+  return marked;
+}
+// ---- safe Markdown rendering: end --------------------------------------------------
+
+// ---- run detail ---------------------------------------------------------------
+function renderMarkdown(el, text) {
+  if (!text) { el.innerHTML = `<p class="muted">Nothing yet.</p>`; return; }
+  const math = []; // protect math from the Markdown parser
+  const protectedText = text.replace(/\$\$[\s\S]+?\$\$|\\\[[\s\S]+?\\\]|\\\([\s\S]+?\\\)|\$[^$\n]+?\$/g, (m) => { math.push(m); return `\u0000${math.length - 1}\u0000`; });
+  const parser = markdownParser();
+  let html = null;
+  if (parser) { try { html = parser.parse(protectedText); } catch (e) { html = null; } }
+  if (typeof html !== "string") html = `<pre>${esc(protectedText)}</pre>`;
+  html = html.replace(/\u0000(\d+)\u0000/g, (_, i) => esc(math[Number(i)]));
+  sanitizeInto(el, html);
+  if (window.renderMathInElement) renderMathInElement(el, { delimiters: [{ left: "$$", right: "$$", display: true }, { left: "\\[", right: "\\]", display: true }, { left: "\\(", right: "\\)", display: false }, { left: "$", right: "$", display: false }], throwOnError: false });
+}
+function numbered(text) { return `<div class="numbered">${(text || "").split("\n").map((l) => `<div><span>${esc(l)}</span></div>`).join("")}</div>`; }
+
+function stopPolling() { if (state.timer) clearTimeout(state.timer); state.timer = null; }
+function closeRun() { stopPolling(); state.currentRun = null; history.replaceState(null, "", "#runs"); $("run-detail").classList.add("hidden"); $("runs-list").classList.remove("hidden"); loadRuns(); }
+
+async function openRun(name) {
+  stopPolling(); state.currentRun = name; state.eventsOffset = 0;
+  history.replaceState(null, "", "#run/" + encodeURIComponent(name));
+  $("runs-list").classList.add("hidden"); $("run-detail").classList.remove("hidden");
+  $("run-detail").innerHTML = `<div class="panel"><p class="muted">Loading ${esc(name)}…</p></div>`;
+  await refreshRun(true);
+}
+
+function summaryLines(d) {
+  const lines = [];
+  if (d.kind === "prove" && d.summary) {
+    const s = d.summary;
+    lines.push(`Rounds completed: ${s.rounds_completed} · generation turns: ${s.generation_turns_completed} · candidates reviewed: ${s.candidates_generated} · branches: ${s.generation_branches}`);
+  }
+  if (d.kind === "verify" && d.report) {
+    if (d.report.termination_reason) lines.push(`Termination: ${d.report.termination_reason} · coverage complete: ${d.report.coverage_complete}`);
+    if (d.report.review_kind === "paper") {
+      const issues = d.report.issues || [];
+      lines.push(`Major: ${issues.filter(i => i.severity === "major").length} · Minor: ${issues.filter(i => i.severity === "minor").length} · Unclassified: ${issues.filter(i => i.severity === "unknown").length} · Classification: ${d.report.classification_status}`);
+    }
+    lines.push(`Approved feedback items: ${(d.report.feedback || []).length}`);
+  }
+  if (d.error) lines.push(`Note: ${d.error}`);
+  if (d.job) lines.push(`Process: ${d.job.status}${d.job.exit_code !== null && d.job.exit_code !== undefined ? " (exit " + d.job.exit_code + ")" : ""} · started ${d.job.started_at}${d.job.cancel_requested_at ? " · cancel requested " + d.job.cancel_requested_at : ""}`);
+  return lines;
+}
+
+async function refreshRun(full) {
+  const name = state.currentRun; if (!name) return;
+  let d;
+  try { d = await api(`/api/runs/${encodeURIComponent(name)}`); } catch (e) { $("run-detail").innerHTML = `<div class="panel"><div class="error">${esc(e.message)}</div><button class="secondary" onclick="closeRun()">Back</button></div>`; return; }
+  if (state.currentRun !== name) return;
+  if (full || !$("rd-status")) {
+    $("run-detail").innerHTML = `
+      <div class="panel">
+        <div class="row"><button class="secondary" onclick="closeRun()">← Runs</button><h2 style="margin:0">${esc(d.name)}</h2><span class="badge">${d.kind === "prove" ? "prove" : "verify"}</span><span id="rd-status"></span><span id="rd-decision"></span><span style="flex:1"></span>
+          <span id="rd-actions"></span></div>
+        <div class="muted" id="rd-summary"></div>
+        <div class="muted">Folder: <code>${esc(d.path)}</code></div>
+        <div class="error" id="rd-error"></div><div id="rd-auto-report" class="muted"></div><div id="rd-draft-status" class="muted"></div>
+      </div>
+      ${d.kind === "prove" ? `<div class="panel" id="rd-proof-panel"><div class="row" style="margin:0 0 12px"><h2 style="margin:0">Proof ready for human review</h2><span style="flex:1"></span><button class="secondary" id="rd-proof-copy" onclick="copyRaw('proof', this)">Copy source</button></div><div class="notice">The verifier finished with no unresolved issue. This is a handoff for a human reader, not a certificate. Hashes are in <code>handoff.json</code>.</div><details open><summary>Rendered</summary><div class="md" id="rd-proof"></div></details><details><summary>Source (Markdown with LaTeX math)</summary><pre id="rd-proof-src"></pre></details></div>` : ""}
+      ${d.kind === "verify" ? `<div class="panel" id="rd-focus-panel"><h2>Question prepared from the paper</h2><div id="rd-focus"></div></div>` : ""}
+      <div class="panel"><div class="row" style="margin:0 0 12px"><h2 style="margin:0" id="rd-report-title">Audited feedback</h2><span style="flex:1"></span><button class="secondary" id="rd-report-copy" onclick="copyRaw('report', this)" disabled>Copy source</button></div><span id="rd-export"></span><div class="md" id="rd-report"></div></div>
+      ${d.kind === "prove" ? `<div class="panel"><h2>Reviews of generated candidates</h2><table><thead><tr><th>#</th><th>Decision</th><th>Status</th><th>Feedback items</th><th>Reviewed</th></tr></thead><tbody id="rd-reviews"></tbody></table><div id="rd-review-view"></div></div>` : ""}
+      <div class="panel"><h2>Inputs</h2><div id="rd-inputs"></div></div>
+      <div class="panel"><h2>Activity</h2><p class="muted">Internal execution trace. Prose here is not released feedback.</p><div class="events" id="rd-events"></div></div>
+      <div class="panel"><details><summary>Process log (stderr)</summary><pre id="rd-stderr"></pre></details></div>`;
+    const inputs = d.inputs || {};
+    $("rd-inputs").innerHTML = d.kind === "prove"
+      ? `<h3>Problem</h3>${numbered(inputs.problem)}`
+      : `<h3>Question</h3>${numbered(inputs.question)}<h3>Candidate solution (line numbers as cited in feedback)</h3>${numbered(inputs.solution)}`;
+    state.eventsOffset = 0; $("rd-events").innerHTML = "";
+  }
+  $("rd-status").innerHTML = badge(d.status);
+  $("rd-decision").innerHTML = d.review_kind === "paper" ? "" : decisionBadge(d.decision);
+  $("rd-summary").innerHTML = summaryLines(d).map(esc).join("<br>");
+  $("rd-stderr").textContent = d.stderr_tail || "";
+  let actions = "";
+  if (d.status === "running") actions = `<button class="secondary" onclick="cancelRun()">Cancel</button>`;
+  else if (d.resumable && d.job) actions = (d.kind === "prove" ? `<label class="check">more rounds: <input type="number" id="rd-rounds" min="1" style="width:80px" value="${esc(d.job.settings && d.job.settings.prove ? d.job.settings.prove.max_rounds : "")}"></label>` : "") + `<button class="primary" onclick="resumeRun()">Resume</button>`;
+  else if (d.resumable) actions = `<span class="muted">Started outside the GUI; resume it with its original command.</span>`;
+  $("rd-actions").innerHTML = actions;
+  if (d.kind === "prove") {
+    state.texts.proof = d.proof_text || "";
+    if (d.proof_text) { $("rd-proof-panel").classList.remove("hidden"); renderMarkdown($("rd-proof"), d.proof_text); $("rd-proof-src").textContent = d.proof_text; }
+    else $("rd-proof-panel").classList.add("hidden");
+    $("rd-report-title").textContent = d.latest_review ? "Latest review feedback" : "Latest review feedback (none yet)";
+    $("rd-reviews").innerHTML = (d.reviews || []).map((r, i) => `<tr class="clickable" data-open-review="${esc(r.key)}"><td>${i + 1}</td><td>${decisionBadge(r.decision)}</td><td>${esc(r.run_status)}</td><td>${esc(r.feedback_count)}</td><td class="muted">${when(r.updated_at)}</td></tr>`).join("") || `<tr><td colspan="5" class="muted">No candidate has been reviewed yet.</td></tr>`;
+  }
+  if (d.kind === "verify") {
+    const panel = $("rd-focus-panel");
+    if (d.paper_mode) {
+      panel.classList.remove("hidden");
+      const modeLabel = { smart: "Smart (main theorems and key steps selected by agents)", lazy: "Lazy (theorems in the introduction)", manual: "Manual (labels chosen by the user)" }[d.paper_mode] || d.paper_mode;
+      if (d.extraction) {
+        const x = d.extraction.extraction;
+        $("rd-focus").innerHTML = `<p class="muted">Mode: ${esc(modeLabel)} · ${esc(x.targets.length)} target(s)${d.extraction.backend.attempts ? " · " + esc(d.extraction.backend.attempts) + " extraction attempt(s)" : ""}</p>` +
+          `<table><thead><tr><th>#</th><th>Result</th><th>Label</th><th>Role</th><th>Why selected</th></tr></thead><tbody>` +
+          x.targets.map((t, i) => `<tr><td>${i + 1}</td><td>${esc(t.name)}</td><td><code>${esc(t.label || "")}</code></td><td>${esc(t.role)}</td><td class="muted">${esc(t.reason)}</td></tr>`).join("") + `</tbody></table>` +
+          `<details style="margin-top:8px"><summary>Full question text</summary><div class="md" id="rd-question"></div></details>`;
+        renderMarkdown($("rd-question"), d.inputs.question);
+      } else {
+        $("rd-focus").innerHTML = `<p class="muted">Mode: ${esc(modeLabel)}. ${d.status === "running" ? "Preparing the question from the paper…" : "The question was not prepared; see the process log below."}</p>`;
+      }
+    } else panel.classList.add("hidden");
+  }
+  $("rd-export").innerHTML = d.report_markdown ? exportLinks(name, d.latest_review || null) : "";
+  const template = d.template_report;
+  $("rd-auto-report").innerHTML = template?.status === "completed"
+    ? `<a href="/api/runs/${encodeURIComponent(name)}/template-pdf" download="referee-report.pdf">${template.partial ? "Download partial PDF (quota exhausted)" : "Download template PDF"}</a>`
+    : template?.status === "running" ? `Template PDF: ${esc(template.phase)}…`
+    : template?.status === "failed" ? `Template PDF failed: ${esc(template.error)} Verification results are preserved.` : "";
+  state.texts.report = d.report_markdown || "";
+  $("rd-report-copy").disabled = !state.texts.report;
+  if ($("rd-report").dataset.text !== (d.report_markdown || "")) { $("rd-report").dataset.text = d.report_markdown || ""; renderMarkdown($("rd-report"), d.report_markdown); }
+  await refreshEvents();
+  if (d.status === "running" || template?.status === "running") state.timer = setTimeout(() => refreshRun(false), 3000);
+}
+
+async function refreshEvents() {
+  const name = state.currentRun; if (!name) return;
+  const data = await api(`/api/runs/${encodeURIComponent(name)}/events?offset=${state.eventsOffset}`);
+  if (state.currentRun !== name) return;
+  if (data.offset < state.eventsOffset) $("rd-events").innerHTML = "";
+  state.eventsOffset = data.offset;
+  const box = $("rd-events");
+  for (const ev of data.events) {
+    const rest = Object.fromEntries(Object.entries(ev).filter(([k]) => !["at", "event", "sequence"].includes(k)));
+    const div = document.createElement("div");
+    div.innerHTML = `<span class="t">${esc((ev.at || "").slice(11, 19))}</span><span class="e">${esc(ev.event)}</span><span class="muted">${esc(JSON.stringify(rest))}</span>`;
+    box.appendChild(div);
+  }
+  if (data.events.length) box.scrollTop = box.scrollHeight;
+}
+
+const activeReportDrafts = new Set();
+
+function exportLinks(name, key = null) {
+  const base = `/api/runs/${encodeURIComponent(name)}` + (key ? `/reviews/${encodeURIComponent(key)}` : "");
+  return `<div class="row"><a href="${base}/export?format=latex" download="report.tex">Download LaTeX (.tex)</a><a href="${base}/export?format=markdown" download="report.md">Download Markdown (.md)</a><button class="secondary" data-run="${esc(name)}" data-review="${esc(key || '')}" onclick="draftReport(this)" ${activeReportDrafts.has(name + "/" + (key || "")) ? "disabled" : ""}>Draft template report (2 Codex calls)</button></div>`;
+}
+
+async function draftReport(button) {
+  const name = button.dataset.run, review = button.dataset.review || null;
+  const jobKey = name + "/" + (review || "");
+  if (activeReportDrafts.has(jobKey)) return;
+  activeReportDrafts.add(jobKey);
+  button.disabled = true;
+  const show = text => { if (state.currentRun === name && $("rd-draft-status")) $("rd-draft-status").innerHTML = text; };
+  show("Writing report and checking editorial fidelity… Verification results remain unchanged.");
+  try {
+    const job = await api(`/api/runs/${encodeURIComponent(name)}/report-draft`, {method: "POST", body: JSON.stringify({review})});
+    const poll = async () => {
+      try {
+        const result = await api(`/api/report-drafts/${job.draft_id}`);
+        if (result.status === "running") { setTimeout(poll, 1500); return; }
+        if (result.status === "completed") show(`<a href="/api/report-drafts/${job.draft_id}/download" download="referee-report.tex">Download drafted referee report (.tex)</a> — editorial check passed; verification was not rerun.`);
+        else show(`Report not released: ${esc(result.error || "editorial check or execution failed")}`);
+        activeReportDrafts.delete(jobKey); button.disabled = false;
+      } catch (e) { show(esc(e.message)); activeReportDrafts.delete(jobKey); button.disabled = false; }
+    };
+    await poll();
+  } catch (e) { show(esc(e.message)); activeReportDrafts.delete(jobKey); button.disabled = false; }
+}
+
+async function openReview(key) {
+  const name = state.currentRun;
+  try {
+    const r = await api(`/api/runs/${encodeURIComponent(name)}/reviews/${encodeURIComponent(key)}`);
+    state.texts.review = r.report_markdown || ""; state.texts.candidate = r.candidate_solution || "";
+    $("rd-review-view").innerHTML = `<div class="row"><h3 style="margin:0">Review ${esc(key.slice(0, 12))}</h3><span style="flex:1"></span><button class="secondary" onclick="copyRaw('review', this)" ${state.texts.review ? "" : "disabled"}>Copy feedback source</button><button class="secondary" onclick="copyRaw('candidate', this)" ${state.texts.candidate ? "" : "disabled"}>Copy candidate source</button></div>${r.report_markdown ? exportLinks(name, key) : ""}<div class="md" id="rv-md"></div><details><summary>Candidate solution reviewed (line numbers as cited)</summary>${numbered(r.candidate_solution)}</details>`;
+    renderMarkdown($("rv-md"), r.report_markdown);
+  } catch (e) { $("rd-review-view").innerHTML = `<div class="error">${esc(e.message)}</div>`; }
+}
+async function cancelRun() {
+  if (!confirm("Interrupt this run? Completed work is kept and the run can be resumed.")) return;
+  try { await api(`/api/runs/${encodeURIComponent(state.currentRun)}/cancel`, { method: "POST" }); } catch (e) { $("rd-error").textContent = e.message; }
+  refreshRun(false);
+}
+async function resumeRun() {
+  $("rd-error").textContent = "";
+  const rounds = $("rd-rounds") ? $("rd-rounds").value : undefined;
+  try { await api(`/api/runs/${encodeURIComponent(state.currentRun)}/resume`, { method: "POST", body: JSON.stringify({ max_rounds: rounds }) }); }
+  catch (e) { $("rd-error").textContent = e.message; }
+  refreshRun(false);
+}
+
+// Clipboard: the async API first; WebKit (the desktop window) may refuse it, so fall back
+// to a hidden textarea and the legacy copy command.
+async function copyToClipboard(text) {
+  try { if (navigator.clipboard && navigator.clipboard.writeText) { await navigator.clipboard.writeText(text); return true; } } catch (e) {}
+  const area = document.createElement("textarea");
+  area.value = text; area.setAttribute("readonly", ""); area.style.position = "fixed"; area.style.top = "0"; area.style.opacity = "0";
+  document.body.appendChild(area); area.focus(); area.select(); area.setSelectionRange(0, text.length);
+  let ok = false;
+  try { ok = document.execCommand("copy"); } catch (e) {}
+  document.body.removeChild(area);
+  return ok;
+}
+async function copyWithFeedback(text, button) {
+  const label = button.textContent;
+  const ok = text ? await copyToClipboard(text) : false;
+  button.textContent = ok ? "Copied" : "Copy failed: open Source and select";
+  setTimeout(() => { button.textContent = label; }, ok ? 1500 : 4000);
+}
+// Copies the raw text (Markdown with LaTeX math) kept in state.texts, never the rendered HTML.
+function copyRaw(key, button) { copyWithFeedback(state.texts[key] || "", button); }
+function copyText(id, button) { copyWithFeedback($(id).textContent, button); }
+async function quitApp() {
+  const st = await api("/api/state").catch(() => ({ active_runs: [] }));
+  const n = (st.active_runs || []).length;
+  if (!confirm(n ? `${n} run(s) are in progress. They keep running in the background and you can reopen the app to watch them. Quit now?` : "Quit OSVerify?")) return;
+  try { await api("/api/quit", { method: "POST" }); } catch (e) {}
+  document.body.innerHTML = '<main><div class="panel"><h2>OSVerify has quit.</h2><p class="muted">You can close this window.</p></div></main>';
+  window.close();
+}
+
+// Rows carry their run or review name as data; nothing taken from run data becomes code.
+document.addEventListener("click", (event) => {
+  const target = event.target instanceof Element ? event.target : null;
+  const run = target && target.closest("[data-open-run]");
+  if (run) { openRun(run.dataset.openRun); return; }
+  const review = target && target.closest("[data-open-review]");
+  if (review) openReview(review.dataset.openReview);
+});
+
+// ---- boot ---------------------------------------------------------------------
+(async function boot() {
+  renderSettingsForm();
+  try {
+    const st = await api("/api/state");
+    fillSettings(st.settings);
+    $("runs-root").textContent = `Run folders live in ${st.runs_root}`;
+    if (st.desktop) $("quit-btn").classList.remove("hidden");
+    $("about-version").textContent = "version " + (st.version || "dev");
+    $("about-home").textContent = st.home;
+    if (st.settings_error) $("s-error").textContent = st.settings_error;
+  } catch (e) { $("v-error").textContent = e.message; }
+  checkCodex(false);
+  const hash = decodeURIComponent(location.hash.slice(1));
+  if (hash.startsWith("run/")) { showTab("runs", true); openRun(hash.slice(4)); }
+  else if (["verify", "prove", "runs", "settings", "about"].includes(hash)) showTab(hash, true);
+})();
+</script>
+</body>
+</html>

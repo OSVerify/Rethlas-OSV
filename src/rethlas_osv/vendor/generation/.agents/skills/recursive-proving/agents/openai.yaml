@@ -1,0 +1,7 @@
+interface:
+  display_name: "Recursive Proving"
+  short_description: "Run plan agents in parallel"
+  default_prompt: "Use $recursive-proving to spawn one sub-agent per decomposition plan and gather their reports recursively."
+
+policy:
+  allow_implicit_invocation: true

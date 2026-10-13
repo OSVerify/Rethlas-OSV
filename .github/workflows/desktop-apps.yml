@@ -1,0 +1,131 @@
+name: Desktop apps
+
+# Builds Rethlas-OSV.app and a .dmg on Apple's macOS runners (one per architecture)
+# and a Linux bundle on Ubuntu. Every job smoke-tests its compiled binary.
+# Run it from the Actions tab (workflow_dispatch) or push a tag like v0.6.0; a tag also
+# attaches the .dmg files and the Linux bundle to that GitHub Release.
+# Signing/notarization run only when the secrets below exist:
+#   MACOS_CERTIFICATE (base64 .p12), MACOS_CERTIFICATE_PASSWORD, SIGN_IDENTITY,
+#   APPLE_ID, APPLE_TEAM_ID, APPLE_APP_PASSWORD (app-specific password).
+
+permissions:
+  contents: read
+
+on:
+  workflow_dispatch:
+  push:
+    tags: ["v*"]
+
+jobs:
+  macos:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: macos-14   # Apple silicon
+            arch: arm64
+          - runner: macos-15-intel   # Intel
+            arch: x86_64
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 90
+    env:
+      HAS_CERTIFICATE: ${{ secrets.MACOS_CERTIFICATE != '' }}
+      HAS_NOTARY: ${{ secrets.APPLE_ID != '' }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          python-version: "3.12"
+
+      - name: Import signing certificate
+        if: env.HAS_CERTIFICATE == 'true'
+        env:
+          MACOS_CERTIFICATE: ${{ secrets.MACOS_CERTIFICATE }}
+          MACOS_CERTIFICATE_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PASSWORD }}
+        run: |
+          echo "$MACOS_CERTIFICATE" | base64 --decode > certificate.p12
+          security create-keychain -p actions build.keychain
+          security default-keychain -s build.keychain
+          security unlock-keychain -p actions build.keychain
+          security import certificate.p12 -k build.keychain -P "$MACOS_CERTIFICATE_PASSWORD" -T /usr/bin/codesign
+          security set-key-partition-list -S apple-tool:,apple: -s -k actions build.keychain
+          rm certificate.p12
+
+      - name: Store notarization credentials
+        if: env.HAS_NOTARY == 'true'
+        env:
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          APPLE_APP_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
+        run: |
+          xcrun notarytool store-credentials rethlas-osv \
+            --apple-id "$APPLE_ID" --team-id "$APPLE_TEAM_ID" --password "$APPLE_APP_PASSWORD"
+          echo "NOTARY_PROFILE=rethlas-osv" >> "$GITHUB_ENV"
+
+      - name: Build app and disk image
+        env:
+          SIGN_IDENTITY: ${{ secrets.SIGN_IDENTITY }}
+        run: ./packaging/macos/build.sh
+
+      - name: Smoke-test the compiled app
+        run: ./packaging/smoke-test.sh "dist/macos-${{ matrix.arch }}/Rethlas-OSV.app/Contents/MacOS/Rethlas-OSV"
+
+      - name: Upload disk image
+        uses: actions/upload-artifact@v4
+        with:
+          name: Rethlas-OSV-${{ matrix.arch }}
+          path: dist/macos-${{ matrix.arch }}/*.dmg
+          if-no-files-found: error
+
+  linux:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install build tools
+        run: sudo apt-get update && sudo apt-get install -y patchelf gcc
+
+      - name: Build bundle
+        run: ./packaging/linux/build.sh
+
+      - name: Smoke-test the compiled bundle
+        run: ./packaging/smoke-test.sh dist/linux-x86_64/Rethlas-OSV/Rethlas-OSV
+
+      - name: Upload bundle
+        uses: actions/upload-artifact@v4
+        with:
+          name: Rethlas-OSV-linux-x86_64
+          path: dist/linux-x86_64/*.tar.gz
+          if-no-files-found: error
+
+  release:
+    # Tags only: attach every built installer to the GitHub Release of that tag.
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [macos, linux]
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: installers
+          merge-multiple: true
+
+      - name: Attach the installers to the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          ls -l installers
+          gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1 \
+            || gh release create "$GITHUB_REF_NAME" --title "Rethlas-OSV ${GITHUB_REF_NAME#v}" \
+                 --notes "Desktop app (beta) for macOS and Linux. The macOS app is not signed yet; see the README for how to open it the first time."
+          gh release upload "$GITHUB_REF_NAME" installers/* --clobber

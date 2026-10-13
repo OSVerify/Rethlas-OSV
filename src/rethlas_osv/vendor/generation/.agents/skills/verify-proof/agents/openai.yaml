@@ -1,0 +1,7 @@
+interface:
+  display_name: "Verify Proof"
+  short_description: "Verify proofs with local service"
+  default_prompt: "Use $verify-proof to call the local proof verification service and log the verifier's report."
+
+policy:
+  allow_implicit_invocation: true

@@ -1,0 +1,4 @@
+interface:
+  display_name: "Submit Proof for Review"
+  short_description: "Submit a complete Rethlas blueprint to OSVerify"
+  default_prompt: "Use $verify-proof to prepare the full blueprint and end this generation turn with a structured submission for OSVerify."

@@ -1,0 +1,58 @@
+[build-system]
+requires = ["hatchling>=1.27"]
+build-backend = "hatchling.build"
+
+[project]
+name = "rethlas-osv"
+version = "0.6.0"
+description = "Rethlas-OSV: Rethlas proof generation reviewed by OSVerify, with a desktop app"
+readme = "README.md"
+license = "Apache-2.0"
+license-files = ["LICENSE", "NOTICE.md"]
+requires-python = ">=3.12"
+dependencies = [
+    "osverify>=0.6,<0.7",
+    "fastmcp>=2.14,<3",
+    "requests>=2.31,<3",
+]
+
+[project.optional-dependencies]
+desktop = ["pywebview>=5,<7"]
+
+[project.urls]
+Homepage = "https://osverify.github.io"
+Repository = "https://github.com/OSVerify/Rethlas-OSV"
+
+[project.scripts]
+rethlas-osv = "rethlas_osv.cli:main"
+rethlas-osv-gui = "rethlas_osv_gui.server:main"
+rethlas-osv-desktop = "rethlas_osv_gui.launcher:main"
+
+[dependency-groups]
+dev = ["pytest>=8,<9", "ruff>=0.11"]
+
+[tool.uv]
+# cryptography >= 49 ships no Intel macOS wheels; a source build there links no OpenSSL
+# and fails to import, which breaks the Rethlas memory server in the Intel app.
+constraint-dependencies = [
+  "cryptography<49; sys_platform == 'darwin' and platform_machine == 'x86_64'",
+]
+
+[tool.uv.sources]
+# The released OSVerify. To develop both together, point this at a local checkout:
+# osverify = { path = "../OSVerify", editable = true }
+osverify = { git = "https://github.com/OSVerify/OSVerify", tag = "v0.6.0" }
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/rethlas_osv", "src/rethlas_osv_gui"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 100
+extend-exclude = ["src/rethlas_osv/vendor"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I"]
+ignore = ["E501"]

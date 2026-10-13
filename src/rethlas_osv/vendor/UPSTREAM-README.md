@@ -1,0 +1,159 @@
+# Rethlas
+
+Rethlas is a natural-language reasoning system for mathematics built around two Codex agents:
+
+- The generation agent reads a math problem from a markdown file and writes an informal proof blueprint.
+- The verification agent checks that proof blueprint, produces a structured verdict, and serves as the generation agent's verifier.
+
+The intended deployment order is:
+
+1. Start the verification agent as a local HTTP service.
+2. Run the generation agent through Codex.
+3. Let the generation agent call the verification service during its proof-and-repair loop.
+
+## Repository Layout
+
+- `agents/generation`: the proof-generation agent
+- `agents/verification`: the proof-verification agent
+
+In particular, 
+- Original problems are put in `agents/generation/data/`, e.g. unclassified problem `agents/generation/data/example.md`, or classfied problem `agents/generation/data/modrep/modrep.md`, `agents/generation/data/example/example1.md`.
+- Zola project to render the results in a static website is in `agents/generation/site/`.
+
+## 1. Install Codex CLI
+
+Install the Codex CLI:
+
+```bash
+npm install -g @openai/codex
+```
+
+
+## 2. Clone the Repository
+
+```bash
+git clone https://github.com/frenzymath/Rethlas.git
+cd Rethlas
+```
+
+## 3. Start the Verification Service
+
+
+```bash
+cd agents/verification
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+uvicorn api.server:app --host 0.0.0.0 --port 8091
+```
+
+Using uv
+```bash
+cd agents/verification
+uv venv 
+uv pip install -r requirements.txt
+uv run uvicorn api.server:app --host 0.0.0.0 --port 8091
+```
+
+## 4. Run the Generation Agent on the Included Example
+
+
+```bash
+cd agents/generation
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r mcp/requirements.txt
+./tests/run_example.sh
+```
+
+This script:
+
+- reads `agents/generation/data/example.md`
+- runs `codex exec` inside `agents/generation`
+- resumes the same Codex session for up to `MAX_ITERATIONS` iterations, alternating search-disabled and search-enabled continuation turns
+- stops when `agents/generation/results/example/blueprint_verified.md` is produced
+- writes iteration logs to `agents/generation/logs/example/iter/`
+- writes memory artifacts to `agents/generation/memory/example/`
+- writes the draft proof to `agents/generation/results/example/blueprint.md`
+- writes the verified proof to `agents/generation/results/example/blueprint_verified.md` if verification succeeds
+
+You can set the maximum number of iterations:
+
+```bash
+MAX_ITERATIONS=10 ./tests/run_example.sh
+```
+
+## 5. Run Your Own Problem
+
+Put your problem in a markdown file under `agents/generation/data/`. Save that as:
+
+```text
+agents/generation/data/my_problem.md
+```
+
+Then run:
+
+```bash
+cd agents/generation
+source .venv/bin/activate
+PROBLEM_FILE=data/my_problem.md ./tests/run_example.sh
+```
+
+You can group problems in subdirectories under `data/` and the generated artifacts preserve that structure. For example:
+
+```bash
+PROBLEM_FILE=data/modrep/modrep.md ./tests/run_example.sh
+```
+
+To attach user-provided references to a problem (this is optional; use it when you are working on your own research problem and want to provide the agent with unreleased notes), create a sibling reference directory with the same stem:
+
+```text
+agents/generation/data/modrep/modrep.refs/
+```
+
+When that directory exists, the generation agent reads its files before using external search.
+Reference files may be markdown, LaTeX, plain text, or PDF, but markdown, LaTeX and plain text is prefered over PDF. Actually, PDFs are converted to extracted text under `.extracted/` before the agent runs.
+
+## 6. View Results in the Browser
+
+- `agents/generation/site`: Zola site for browsing results in the browser
+
+Results are markdown files with LaTeX math. To render them properly, a local [Zola](https://www.getzola.org/) site using the [MATbook](https://www.getzola.org/themes/matbook/) theme is included.
+
+### Prerequisites
+
+Install Zola.
+
+Zola can be easily installed using your package manager in terminal. For example, on Mac, you simply run
+
+```bash
+brew install zola
+```
+
+and on ArchLinux, run
+
+```bash
+sudo pacman -S zola
+```
+
+For other operating systems, please see [Zola installation](https://www.getzola.org/documentation/getting-started/installation/).
+
+### Serve
+
+From `agents/generation/`:
+
+```bash
+./site/serve.sh
+```
+
+On first run this automatically clones the [MATbook](https://www.getzola.org/themes/matbook/) theme. Then it syncs all results from `results/` into the site and starts a local server. Open http://localhost:3264 in your browser.
+
+Each problem  in `agents/generation/data/your_category`  will be a section in a chapter called `your_category`, while problems directly in `agents/generation/data` will be under `unclassified` chapter.
+
+### Update the MATbook Theme
+
+```bash
+./site/setup_theme.sh
+```
+
+This pulls the latest version from the [MATbook repository](https://github.com/srliu3264/MATbook).
