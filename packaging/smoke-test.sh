@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Exercise a compiled bundle without any model call:
 #   1. --entry dispatch runs the offline demo review through the bundled core
-#   2. the desktop server starts, reports itself, and prefers the bundled Codex
+#   2. the literature helper starts and exercises the bundled reference-store lock
+#   3. the desktop server starts, reports itself, and prefers the bundled Codex
 # Usage: packaging/smoke-test.sh <path-to-executable>
 set -euo pipefail
 BIN="${1:?path to the Rethlas-OSV executable}"
@@ -15,6 +16,37 @@ import json, sys
 report = json.load(open(sys.argv[1]))
 assert report["run_status"] == "completed" and report["decision"], report
 print("demo decision:", report["decision"])
+PY
+
+echo "== literature helper"
+python3 - "$BIN" "$HOME_DIR" <<'PY'
+import json, subprocess, sys
+from pathlib import Path
+
+root = Path(sys.argv[2])
+requests = [
+    {"jsonrpc": "2.0", "id": 1, "method": "tools/list"},
+    {"jsonrpc": "2.0", "id": 2, "method": "tools/call", "params": {
+        "name": "resolve_reference", "arguments": {"reference": "http://127.0.0.1/blocked"}}},
+]
+# The private address must be rejected before HTTP; no external request or model call.
+result = subprocess.run(
+    [sys.argv[1], "--entry", "osverifier_reports.reference_tools",
+     "--store", str(root / "references"), "--journal", str(root / "literature.jsonl")],
+    input="".join(json.dumps(request) + "\n" for request in requests),
+    text=True, capture_output=True, timeout=30,
+)
+assert result.returncode == 0, result.stderr
+replies = [json.loads(line) for line in result.stdout.splitlines()]
+assert len(replies) == 2, result.stdout
+tools = {tool["name"]: tool for tool in replies[0]["result"]["tools"]}
+assert {"search_literature", "resolve_reference", "read_reference"} <= tools.keys()
+assert "text/code files" in tools["resolve_reference"]["description"]
+assert not replies[1]["result"]["isError"], replies[1]
+retrieval = json.loads(replies[1]["result"]["content"][0]["text"])["retrieval"]
+assert retrieval["status"] == "unresolved" and "Non-public source address" in retrieval["reason"], retrieval
+assert json.loads((root / "references/store-version.json").read_text()) == {"version": 4}
+print("literature helper: updated tools, file lock and private-address guard passed")
 PY
 
 echo "== desktop server"
