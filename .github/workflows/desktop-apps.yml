@@ -128,4 +128,7 @@ jobs:
           gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1 \
             || gh release create "$GITHUB_REF_NAME" --title "Rethlas-OSV ${GITHUB_REF_NAME#v}" \
                  --notes "Desktop app (beta) for macOS and Linux. The macOS app is not signed yet; see the README for how to open it the first time."
-          gh release upload "$GITHUB_REF_NAME" installers/* --clobber
+          (cd installers && sha256sum *.dmg *.tar.gz > SHA256SUMS.txt)
+          for installer in installers/*; do
+            gh release upload "$GITHUB_REF_NAME" "$installer" --clobber
+          done

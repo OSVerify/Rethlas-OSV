@@ -45,7 +45,7 @@ assert "text/code files" in tools["resolve_reference"]["description"]
 assert not replies[1]["result"]["isError"], replies[1]
 retrieval = json.loads(replies[1]["result"]["content"][0]["text"])["retrieval"]
 assert retrieval["status"] == "unresolved" and "Non-public source address" in retrieval["reason"], retrieval
-assert json.loads((root / "references/store-version.json").read_text()) == {"version": 4}
+assert json.loads((root / "references/store-version.json").read_text()) == {"version": 5}
 print("literature helper: updated tools, file lock and private-address guard passed")
 PY
 
