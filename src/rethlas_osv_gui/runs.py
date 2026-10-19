@@ -47,7 +47,7 @@ def _json(path: Path):
 
 def _text(path: Path, limit: int | None = None) -> str | None:
     try:
-        text = path.read_text(errors="replace")
+        text = path.read_text(encoding="utf-8", errors="replace")
     except OSError:
         return None
     if limit is not None and len(text) > limit:

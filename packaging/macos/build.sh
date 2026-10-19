@@ -37,6 +37,7 @@ uv run python -m nuitka \
   --macos-create-app-bundle \
   --macos-app-mode=gui \
   --macos-app-name=Rethlas-OSV \
+  --macos-app-icon=packaging/macos/icon/rethlas-osv.icns \
   --macos-app-version="$VERSION" \
   --macos-signed-app-name=org.rethlas.osv \
   --output-dir="$DIST/build" \

@@ -9,13 +9,14 @@ from osverifier.backend import DEFAULT_MODEL
 from osverifier.frozen import python_module_command
 from osverifier.storage import atomic_json, read_json
 
-REASONING_EFFORTS = ("low", "medium", "high", "xhigh")
+REASONING_EFFORTS = ("low", "medium", "high", "xhigh", "max")
 WEB_SEARCH_MODES = ("disabled", "cached", "live")
 SEARCH_POLICIES = ("alternating", "live", "disabled")
 
 # Every value here maps onto an explicit flag of ``osverify verify`` or
 # ``rethlas-osv``. Defaults mirror the CLI defaults so a GUI run and a terminal
-# run with no overrides freeze identical configuration.
+# run with no overrides freeze identical configuration, except that a GUI review
+# keeps going after the first major mistake unless the user asks it to stop.
 DEFAULTS: dict = {
     "codex_bin": "codex",
     "codex_home": "",
@@ -28,7 +29,7 @@ DEFAULTS: dict = {
         "max_issues": None,
         "max_attempts": 2,
         "decompose": True,
-        "early_stop": True,
+        "early_stop": False,
     },
     "prove": {
         "generator_model": DEFAULT_MODEL,

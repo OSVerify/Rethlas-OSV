@@ -90,7 +90,7 @@ class Experiment:
     def emit(self, directory, event, **fields):
         row = {"at": datetime.now(timezone.utc).isoformat(), "event": event, **fields}
         with self._event_lock:
-            with (directory / "trajectory.jsonl").open("a") as out:
+            with (directory / "trajectory.jsonl").open("a", encoding="utf-8") as out:
                 out.write(json.dumps(row, ensure_ascii=False) + "\n")
             if self.event_sink:
                 self.event_sink(row)
@@ -103,7 +103,13 @@ class Experiment:
             return self._run(problem, directory, references, prepare_only=prepare_only)
 
     def _run(self, problem, directory, references, *, prepare_only=False):
-        question = problem.read_text()
+        try:
+            question = problem.read_text(encoding="utf-8")
+        except UnicodeDecodeError as exc:
+            raise ValueError(
+                f"problem file {problem} is not UTF-8 text (byte {exc.start}: {exc.reason}); "
+                "save it as UTF-8"
+            ) from None
         if not question.strip():
             raise ValueError("problem must be nonblank")
         ref_files = {}
@@ -141,7 +147,7 @@ class Experiment:
                 target = directory / "inputs/references" / rel
                 target.parent.mkdir(parents=True, exist_ok=True)
                 shutil.copy2(references / rel, target)
-        if (directory / "inputs/problem.md").read_text() != question:
+        if (directory / "inputs/problem.md").read_text(encoding="utf-8") != question:
             raise FrozenRunMismatch("frozen problem snapshot changed")
         for rel, expected in ref_files.items():
             if sha(directory / "inputs/references" / rel) != expected:
@@ -532,7 +538,7 @@ class Experiment:
                 "results/blueprint.md was missing or resolved outside the workspace"
             )
         try:
-            candidate = path.read_text()
+            candidate = path.read_text(encoding="utf-8")
         except UnicodeDecodeError:
             raise InvalidGenerationOutput("results/blueprint.md could not be decoded as text") from None
         if not candidate.strip():

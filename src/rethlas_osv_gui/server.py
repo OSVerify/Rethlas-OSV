@@ -98,7 +98,8 @@ class CodexTools:
         environment = self._environment(settings)
         try:
             version = subprocess.run(
-                [binary, "--version"], capture_output=True, text=True, timeout=15, env=environment
+                [binary, "--version"], capture_output=True, text=True, encoding="utf-8",
+                errors="replace", timeout=15, env=environment
             )
             result["version"] = (version.stdout or version.stderr).strip()
             found = re.search(r"(\d+)\.(\d+)\.(\d+)", result["version"])
@@ -112,6 +113,8 @@ class CodexTools:
                 [binary, "login", "status"],
                 capture_output=True,
                 text=True,
+                encoding="utf-8",
+                errors="replace",
                 timeout=15,
                 env=environment,
                 stdin=subprocess.DEVNULL,
@@ -131,8 +134,8 @@ class CodexTools:
         with self._lock:
             if self._login is None or self._login.poll() is not None:
                 log = self.home / "codex-login.log"
-                log.write_text("")
-                handle = log.open("a")
+                log.write_text("", encoding="utf-8")
+                handle = log.open("a", encoding="utf-8")
                 try:
                     self._login = subprocess.Popen(
                         [binary, "login"],
@@ -158,7 +161,7 @@ class CodexTools:
         log = self.home / "codex-login.log"
         with self._lock:
             process = self._login
-        output = log.read_text(errors="replace") if log.exists() else ""
+        output = log.read_text(encoding="utf-8", errors="replace") if log.exists() else ""
         urls = re.findall(r"https?://\S+", output)
         return {
             "running": process is not None and process.poll() is None,

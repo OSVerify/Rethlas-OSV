@@ -6,13 +6,12 @@ with [OSVerify](https://github.com/OSVerify/OSVerify). Only feedback that OSVeri
 auditor approved word for word goes back to the generator, and a run stops at the first
 draft handed off as `READY_FOR_HUMAN`. A person still makes the final call.
 
-It also includes a desktop app (beta) and a local web GUI, for proving and for plain OSVerify
+It also includes a desktop app and a local web GUI, for proving and for plain OSVerify
 reviews of solutions and papers.
 
-## Download (beta)
+## Download
 
-The desktop app is an early beta and will be updated soon: expect rough edges, and please
-report problems in [Issues](https://github.com/OSVerify/Rethlas-OSV/issues). Get the installer for your system
+Please report problems in [Issues](https://github.com/OSVerify/Rethlas-OSV/issues). Get the installer for your system
 from [Releases](https://github.com/OSVerify/Rethlas-OSV/releases) and sign in with your own
 Codex account inside the app.
 
