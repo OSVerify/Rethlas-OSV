@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import json
-import os
 import sys
 import time
 from datetime import datetime, timezone
@@ -15,6 +14,7 @@ from osverifier.quota import communicate_with_quota_detection
 from osverifier.storage import atomic_json, atomic_text, read_json
 
 from .contracts import GenerationTurn, InvalidGenerationOutput
+from .encoding import utf8_environment
 
 
 class CodexGenerator:
@@ -97,11 +97,16 @@ class CodexGenerator:
             "mcp_servers.rethlas.cwd": str(workspace),
             "mcp_servers.rethlas.required": True,
             "mcp_servers.rethlas.default_tools_approval_mode": "approve",
-            "mcp_servers.rethlas.startup_timeout_sec": 30,
+            # The compiled desktop bundle starts the memory server by relaunching its own
+            # 400 MB executable; a cold start on a slow or Rosetta Mac, times several
+            # parallel branches, exceeds Codex's default window.
+            "mcp_servers.rethlas.startup_timeout_sec": 120,
             "mcp_servers.rethlas.tool_timeout_sec": 120,
             "mcp_servers.rethlas.env.RETHLAS_ALLOW_SEARCH": "0"
             if web_search == "disabled"
             else "1",
+            # Codex gives MCP servers a minimal environment without any locale.
+            "mcp_servers.rethlas.env.PYTHONUTF8": "1",
         }
         for key, value in config.items():
             command += ["-c", f"{key}={json.dumps(value)}"]
@@ -122,13 +127,13 @@ class CodexGenerator:
                 "session_id": session_id,
             },
         )
-        env = os.environ.copy()
+        env = utf8_environment()
         if self.transport.codex_home:
             env["CODEX_HOME"] = str(self.transport.codex_home.expanduser().resolve())
         begun = time.monotonic()
         with (
-            (attempt / "events.jsonl").open("w") as output,
-            (attempt / "stderr.log").open("w") as error,
+            (attempt / "events.jsonl").open("w", encoding="utf-8") as output,
+            (attempt / "stderr.log").open("w", encoding="utf-8") as error,
         ):
             # One transport owns every generation branch's active process group.
             # Quota/cancellation latches and process registration share this lock.

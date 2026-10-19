@@ -37,6 +37,7 @@ uv run python -m nuitka \
   --macos-create-app-bundle \
   --macos-app-mode=gui \
   --macos-app-name=Rethlas-OSV \
+  --macos-app-icon=packaging/macos/icon/rethlas-osv.icns \
   --macos-app-version="$VERSION" \
   --macos-signed-app-name=org.rethlas.osv \
   --output-dir="$DIST/build" \
@@ -60,6 +61,8 @@ uv run python -m nuitka \
   --include-package=WebKit \
   --include-package=UniformTypeIdentifiers \
   --nofollow-import-to=pytest \
+  --nofollow-import-to=tkinter \
+  --nofollow-import-to=_tkinter \
   --assume-yes-for-downloads \
   src/rethlas_osv_gui/launcher.py
 

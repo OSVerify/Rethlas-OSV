@@ -49,6 +49,48 @@ assert json.loads((root / "references/store-version.json").read_text()) == {"ver
 print("literature helper: updated tools, file lock and private-address guard passed")
 PY
 
+echo "== memory server (Rethlas MCP, minimal environment as Codex spawns it)"
+python3 - "$BIN" "$HOME_DIR/workspace" <<'PY'
+import json, os, subprocess, sys, time
+env = {"PATH": os.environ["PATH"], "HOME": os.environ.get("HOME", "/"), "PYTHONUTF8": "1"}
+started = time.monotonic()
+process = subprocess.Popen(
+    [sys.argv[1], "--entry", "rethlas_osv.memory_server", "--workspace", sys.argv[2]],
+    stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=env,
+)
+def send(message):
+    process.stdin.write((json.dumps(message, ensure_ascii=False) + "\n").encode("utf-8"))
+    process.stdin.flush()
+def receive():
+    line = process.stdout.readline()
+    if not line.strip():
+        process.stdin.close()
+        try:
+            code = process.wait(timeout=30)
+        except subprocess.TimeoutExpired:
+            process.kill()
+            code = "still running"
+        stderr = process.stderr.read().decode("utf-8", "replace")
+        raise SystemExit(f"memory server sent no reply (exit {code}); its stderr:\n{stderr}")
+    return json.loads(line)
+send({"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {
+    "protocolVersion": "2025-06-18", "capabilities": {}, "clientInfo": {"name": "smoke", "version": "0"}}})
+reply = receive()
+elapsed = time.monotonic() - started
+assert reply.get("id") == 1 and "result" in reply, reply
+send({"jsonrpc": "2.0", "method": "notifications/initialized"})
+send({"jsonrpc": "2.0", "id": 2, "method": "tools/list"})
+tools = {tool["name"] for tool in receive()["result"]["tools"]}
+assert {"memory_init", "memory_append", "memory_search", "branch_update"} <= tools, tools
+send({"jsonrpc": "2.0", "id": 3, "method": "tools/call", "params": {"name": "memory_append", "arguments": {
+    "problem_id": "smoke", "channel": "events", "record": {"note": "∀ε>0 ∃δ>0: non-ASCII survives"}}}})
+appended = receive()
+assert not appended["result"].get("isError"), appended
+process.stdin.close()
+assert process.wait(timeout=30) == 0, process.stderr.read().decode("utf-8", "replace")
+print(f"memory server: handshake in {elapsed:.1f}s (Codex allows 120s), tools and UTF-8 records ok")
+PY
+
 echo "== desktop server"
 OSVERIFIER_HOME="$HOME_DIR/data" BROWSER=/bin/true "$BIN" --no-window --port 18793 > "$HOME_DIR/desktop.log" 2>&1 &
 PID=$!

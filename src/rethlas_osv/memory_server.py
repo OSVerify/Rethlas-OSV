@@ -5,9 +5,13 @@ from the unmodified vendor module. Its file access is replaced: this server runs
 the generator's sandbox, while the generator can create links in its workspace. Each
 memory path component is therefore opened relative to its parent descriptor with
 O_NOFOLLOW, and only regular, singly linked files are read or written.
-"""
 
-from __future__ import annotations
+No ``from __future__ import annotations`` here: fastmcp compares each tool's evaluated
+type hints with its ``__annotations__`` and, when they differ (string annotations),
+rebuilds the function with ``types.FunctionType``. Inside the compiled desktop bundle
+the tools are Nuitka closures whose cells cannot be rebuilt, which killed the server
+before it answered Codex's initialize request.
+"""
 
 import argparse
 import errno

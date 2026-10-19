@@ -10,6 +10,7 @@ from osverifier.backend import DEFAULT_MODEL, CodexBackend
 from osverifier.pipeline import RunConfig, Verifier
 from osverifier.workflow import DecomposingVerifier, WorkflowConfig
 
+from .encoding import text_encoding_warning, tolerate_console_encoding
 from .generator import CodexGenerator
 from .runner import ROOT, Experiment, LoopConfig
 
@@ -84,6 +85,10 @@ def parser():
 
 def main(argv=None):
     args = parser().parse_args(argv)
+    tolerate_console_encoding()
+    warning = text_encoding_warning()
+    if warning:
+        print(f"warning: {warning}", file=sys.stderr, flush=True)
     try:
         if args.root_only and args.no_early_stop:
             raise ValueError("--no-early-stop cannot be combined with --root-only")

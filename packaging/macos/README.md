@@ -72,5 +72,10 @@ build takes about five minutes and yields a 411 MB app plus a 166 MB `.dmg`, and
 `packaging/smoke-test.sh` passes against it. Two things mattered: Nuitka's own
 pywebview plugin picks the Cocoa backend, so `webview` must not be force-included, and
 the launcher must use absolute imports because Nuitka compiles it as a top-level
-script. No app icon is bundled yet; add one with `--macos-app-icon`. Installing
+script. The app icon is `packaging/macos/icon/rethlas-osv.icns`, rendered from the
+`rethlas-osv.svg` beside it (the same mark the page header uses). The build excludes
+`tkinter`: nothing in the app uses it (pyperclip only names it as a clipboard fallback),
+and uv-managed Pythons link it against Tcl/Tk 9 through `@rpath`, which Nuitka's
+dependency scan cannot resolve. The smoke test's memory-server step is the one that
+catches a bundle whose Rethlas MCP server cannot start. Installing
 `ccache` speeds up rebuilds.

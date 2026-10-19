@@ -12,6 +12,8 @@ from pathlib import Path
 
 from osverifier.storage import atomic_json, read_json
 
+from rethlas_osv.encoding import utf8_environment
+
 JOB_FILE = "gui-job.json"
 STDOUT_LOG = "gui-stdout.log"
 STDERR_LOG = "gui-stderr.log"
@@ -113,8 +115,8 @@ class JobManager:
                 "invocations": int(previous.get("invocations", 0)) + 1,
                 "resume": resume,
             }
-            stdout = (run_dir / STDOUT_LOG).open("a")
-            stderr = (run_dir / STDERR_LOG).open("a")
+            stdout = (run_dir / STDOUT_LOG).open("a", encoding="utf-8")
+            stderr = (run_dir / STDERR_LOG).open("a", encoding="utf-8")
             stderr.write(
                 f"\n--- invocation {record['invocations']} at {record['started_at']} ---\n"
             )
@@ -126,6 +128,9 @@ class JobManager:
                     stdout=stdout,
                     stderr=stderr,
                     cwd=str(run_dir),
+                    # A desktop app launched from Finder has no locale in its environment;
+                    # the CLIs still pipe UTF-8 prompts and write UTF-8 logs.
+                    env=utf8_environment(),
                     start_new_session=True,
                 )
             finally:

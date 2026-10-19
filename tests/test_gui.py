@@ -47,7 +47,7 @@ def test_settings_roundtrip_and_validation(tmp_path):
     assert saved["prove"]["max_rounds"] == 4
     assert load_settings(path) == saved
     for bad in (
-        {"verify": {"reasoning_effort": "max"}},
+        {"verify": {"reasoning_effort": "extreme"}},
         {"verify": {"workers": 0}},
         {"verify": {"model": " "}},
         {"verify": {"decompose": False, "early_stop": False}},
@@ -286,6 +286,21 @@ def test_prove_job_records_problem_and_rounds_override(served, tmp_path):
     assert rethlas_cli.parser().parse_args(read_job(run_dir)["argv"][3:]).max_rounds == 3
     client.call("POST", "/api/runs/conj/cancel")
     wait_for(lambda: read_job(run_dir)["status"] == "exited")
+
+
+def test_jobs_run_children_in_utf8_mode(tmp_path):
+    """Finder gives the desktop app no locale; CLI children must still speak UTF-8."""
+    import os
+
+    run_dir = tmp_path / "job"
+    manager = JobManager()
+    probe = "import json, os, sys; print(json.dumps([os.environ.get('PYTHONUTF8'), sys.flags.utf8_mode, '∀ε>0']))"
+    manager.start(run_dir, "verify", [sys.executable, "-c", probe], {}, resume=False)
+    wait_for(lambda: read_job(run_dir)["status"] == "exited")
+    assert read_job(run_dir)["exit_code"] == 0
+    printed = json.loads((run_dir / "gui-stdout.log").read_text(encoding="utf-8").strip())
+    assert printed == ["1", 1, "∀ε>0"]
+    assert "PYTHONUTF8" not in os.environ or os.environ["PYTHONUTF8"] == "1"
 
 
 def test_reattach_marks_lost_process_as_exited(tmp_path):
