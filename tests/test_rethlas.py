@@ -223,6 +223,24 @@ def test_generator_commands_use_same_session_and_local_mcp(tmp_path):
     assert "--dangerously-bypass-approvals-and-sandbox" not in command
 
 
+def test_tool_annotations_stay_evaluated_for_the_compiled_bundle(tmp_path):
+    """String annotations make fastmcp rebuild each tool with ``types.FunctionType``,
+    which fails on Nuitka-compiled closures ("expected cell, found compiled_cell") and
+    kills the memory server inside the desktop app before it can answer Codex."""
+    import typing
+
+    pytest.importorskip("fastmcp")
+    from rethlas_osv.memory_server import build_app
+
+    tools = asyncio.run(build_app(tmp_path, allow_search=True).get_tools())
+    assert set(tools) == {
+        "memory_init", "memory_append", "memory_search", "branch_update", "search_arxiv_theorems"
+    }
+    for name, tool in tools.items():
+        assert not any(isinstance(v, str) for v in tool.fn.__annotations__.values()), name
+        assert typing.get_type_hints(tool.fn, include_extras=True) == tool.fn.__annotations__, name
+
+
 def test_memory_server_process_handshakes_without_a_locale(tmp_path):
     """The real server process, in the minimal environment Codex gives MCP servers."""
     import os

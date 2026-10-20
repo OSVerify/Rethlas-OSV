@@ -61,6 +61,8 @@ uv run python -m nuitka \
   --include-package=WebKit \
   --include-package=UniformTypeIdentifiers \
   --nofollow-import-to=pytest \
+  --nofollow-import-to=tkinter \
+  --nofollow-import-to=_tkinter \
   --assume-yes-for-downloads \
   src/rethlas_osv_gui/launcher.py
 
