@@ -4,14 +4,14 @@ build-backend = "hatchling.build"
 
 [project]
 name = "rethlas-osv"
-version = "1.0.0"
+version = "1.0.1"
 description = "Rethlas-OSV: Rethlas proof generation reviewed by OSVerify, with a desktop app"
 readme = "README.md"
 license = "Apache-2.0"
 license-files = ["LICENSE", "NOTICE.md"]
 requires-python = ">=3.12"
 dependencies = [
-    "osverify>=0.6.2,<0.7",
+    "osverify>=0.6.3,<0.7",
     "fastmcp>=2.14,<3",
     "requests>=2.31,<3",
 ]
@@ -41,7 +41,7 @@ constraint-dependencies = [
 [tool.uv.sources]
 # The released OSVerify. To develop both together, point this at a local checkout:
 # osverify = { path = "../OSVerify", editable = true }
-osverify = { git = "https://github.com/OSVerify/OSVerify", tag = "v0.6.2" }
+osverify = { git = "https://github.com/OSVerify/OSVerify", tag = "v0.6.3" }
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/rethlas_osv", "src/rethlas_osv_gui"]

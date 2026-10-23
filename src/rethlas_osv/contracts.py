@@ -90,3 +90,25 @@ def stalled_partial_feedback(report: ReviewReport, directory):
         "human_confirmed": False,
         "stalled_jobs": failed,
     }
+
+
+def inconclusive_feedback(report: ReviewReport, directory):
+    """Continue after a finished review that cannot conclude, e.g. on an unlocatable source.
+
+    Its jobs all have exact cached results, so resuming replays the same report; blocking
+    on it would stop the experiment for good. Never a handoff: the report stays incomplete.
+    """
+    if report.run_status == "completed" or (directory / "interruption.json").exists():
+        return None
+    if getattr(report, "termination_reason", None) != "review_inconclusive":
+        return None
+    return {
+        "mode": report.mode,
+        "decision": report.decision,
+        "run_status": report.run_status,
+        "continuation_reason": "verification_inconclusive",
+        "review_complete": False,
+        "notice": "This review finished every planned task but could not reach a conclusion: some checks stayed unresolved, for example a cited result whose source could not be located or read. Resubmitting the same draft returns the same result. Continue with the exact audited feedback below; no PASS or correctness claim is implied. Where the argument depends on an external result, state it exactly and either prove it or cite a source that can be checked.",
+        "feedback": [item.model_dump(mode="json") for item in report.feedback],
+        "human_confirmed": False,
+    }

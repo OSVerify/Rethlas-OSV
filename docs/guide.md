@@ -162,7 +162,12 @@ Both snapshot `results/blueprint.md`; neither asserts correctness.
 | `READY_FOR_HUMAN` | Stop and copy the exact reviewed snapshot to `blueprint_ready_for_human.md`. |
 
 An unfinished verification stops the invocation as `incomplete`; resume its existing
-review before generating another revision. A `REJECT` does not terminate the entire
+review before generating another revision. The exception is a review that finished
+every task but stays inconclusive (`termination_reason=review_inconclusive`), for
+example because a cited source could not be located: resuming would replay the same
+cached result, so the loop records `review_inconclusive` and continues generation with
+`continuation_reason=verification_inconclusive` and the exact audited feedback. Such a
+review never hands off. A `REJECT` does not terminate the entire
 research experiment or assert that the theorem is false. A human handoff does not
 certify the proof: `human_confirmed` remains false.
 

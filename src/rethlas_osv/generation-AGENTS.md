@@ -94,3 +94,10 @@ An incomplete partial review may return `continuation_reason=verification_stalle
 after bounded timeout retries. Continue without interpreting this as PASS. Use only
 the exact released feedback; an existing REJECT still requires reconsidering the
 current route. This exception never authorizes a final handoff.
+
+A finished review of either mode that could not reach a conclusion returns
+`continuation_reason=verification_inconclusive`, for example when a cited source could
+not be located or read. Resubmitting the same draft returns the same result. Continue
+without interpreting this as PASS and use only the exact released feedback. Where the
+draft depends on an external result, state it exactly and either prove it or cite a
+source that can be checked. This exception never authorizes a final handoff.

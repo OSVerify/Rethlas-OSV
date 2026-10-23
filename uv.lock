@@ -900,8 +900,8 @@ wheels = [
 
 [[package]]
 name = "osverify"
-version = "0.6.2"
-source = { git = "https://github.com/OSVerify/OSVerify?tag=v0.6.2#013c91f42565125d1d99dbdbdb40e5aa89bc1883" }
+version = "0.6.3"
+source = { git = "https://github.com/OSVerify/OSVerify?tag=v0.6.3#c36f68a59982ccffba881cccd9a441913ba69185" }
 dependencies = [
     { name = "mistune" },
     { name = "pillow" },
@@ -1562,7 +1562,7 @@ wheels = [
 
 [[package]]
 name = "rethlas-osv"
-version = "1.0.0"
+version = "1.0.1"
 source = { editable = "." }
 dependencies = [
     { name = "fastmcp" },
@@ -1584,7 +1584,7 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "fastmcp", specifier = ">=2.14,<3" },
-    { name = "osverify", git = "https://github.com/OSVerify/OSVerify?tag=v0.6.2" },
+    { name = "osverify", git = "https://github.com/OSVerify/OSVerify?tag=v0.6.3" },
     { name = "pywebview", marker = "extra == 'desktop'", specifier = ">=5,<7" },
     { name = "requests", specifier = ">=2.31,<3" },
 ]
