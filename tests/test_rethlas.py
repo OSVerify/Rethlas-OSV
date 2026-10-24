@@ -33,10 +33,11 @@ class Reviewer:
     config = RunConfig()
 
     def __init__(self, decisions):
-        self.decisions, self.calls = list(decisions), []
+        self.decisions, self.calls, self.references = list(decisions), [], []
 
-    def verify(self, request, directory):
+    def verify(self, request, directory, references=None):
         self.calls.append(request)
+        self.references.append(references)
         action = self.decisions.pop(0)
         feedback = []
         if action in ("REVISE", "REJECT"):
@@ -393,6 +394,7 @@ def test_workspace_restore_replaces_generator_links_instead_of_writing_through(t
     run = tmp_path / "run"
     g, v = LinkingGenerator([(True, "First")]), Reviewer(["REVISE", "REVISE"])
     assert Experiment(g, v, LoopConfig(1)).run(p, run, refs).status == "budget_exhausted"
+    assert v.references == [run / "inputs/references"]
     workspace = run / "generator"
     # The post-review draft write replaced the in-workspace link.
     assert not (workspace / "results/blueprint.md").is_symlink()

@@ -180,10 +180,21 @@ details summary { cursor: pointer; color: var(--muted); font-size: 14px; }
   <div class="panel">
     <h2>Prove a conjecture</h2>
     <p class="muted">State a conjecture to prove; or upload the LaTeX of your paper and add <code>Prove Lemma \ref{tag} in the following paper</code> at the beginning.</p>
+    <div class="notice hidden" id="p-restart">
+      <div id="p-restart-text"></div>
+      <div class="row hidden" id="p-restart-branch-row"><label style="margin:0">Restart from the latest draft of branch</label><select id="p-restart-branch" style="width:auto"></select></div>
+      <label class="check hidden" id="p-keep-row"><input type="checkbox" id="p-keep-refs" checked> <span id="p-keep-label"></span></label>
+      <div class="row"><button class="secondary" onclick="cancelRestart()">Start a new problem instead</button></div>
+    </div>
     <div class="field"><label>Run name</label><input type="text" id="p-name" placeholder="e.g. coset-finiteness"></div>
     <div class="field">
-      <div class="row"><label style="margin:0">Problem statement</label><span style="flex:1"></span><input type="file" id="p-file" accept=".tex,.md,.txt" class="hidden"><button class="secondary" onclick="pickFile('p-file','p-problem')">Load file…</button></div>
+      <div class="row"><label style="margin:0">Problem statement</label><span style="flex:1"></span><input type="file" id="p-file" accept=".tex,.md,.txt" class="hidden"><button class="secondary" id="p-load" onclick="pickFile('p-file','p-problem')">Load file…</button></div>
       <textarea id="p-problem" class="tall" placeholder="State the conjecture precisely, with definitions and hypotheses (LaTeX or Markdown)."></textarea>
+    </div>
+    <div class="field">
+      <div class="row"><label style="margin:0" id="p-refs-label">Reference files (optional)</label><span style="flex:1"></span><input type="file" id="p-refs-file" multiple class="hidden"><button class="secondary" onclick="pickReferences()">Add files…</button></div>
+      <p class="muted" style="margin:0">PDFs (scans too), images or text files that the generator and the verifier can read, for example a cited paper that web search cannot retrieve. To add a folder, open it and select all of its files. The files are copied into the run folder and frozen with the run; at most 256 MB in total.</p>
+      <div id="p-refs"></div>
     </div>
     <h3>Quick settings (defaults come from the Settings tab)</h3>
     <div class="grid">
@@ -337,7 +348,7 @@ function setTheme(value) {
   const fromUrl = new URLSearchParams(location.search).get("theme");  // ?theme=dark|light|system
   setTheme(["light", "dark", "system"].includes(fromUrl) ? fromUrl : saved);
 })();
-const state = { settings: null, currentRun: null, eventsOffset: 0, timer: null, models: new Set(["gpt-6-astra", "gpt-6.1-sol", "gpt-5.6-sol"]), texts: {} };
+const state = { settings: null, currentRun: null, eventsOffset: 0, timer: null, models: new Set(["gpt-6-astra", "gpt-6.1-sol", "gpt-5.6-sol"]), texts: {}, references: [], restart: null, restartFrom: null };
 
 const VERIFY_FIELDS = [
   ["model", "Model", "text"], ["reasoning_effort", "Reasoning effort", "effort"], ["web_search", "Web search", "web"],
@@ -519,14 +530,85 @@ async function startVerify() {
 async function startProve() {
   $("p-error").textContent = ""; $("p-start").disabled = true;
   try {
+    const total = state.references.reduce((n, f) => n + f.size, 0);
+    if (total > MAX_REFERENCE_BYTES) throw new Error(`The reference files exceed ${MAX_REFERENCE_BYTES / 2 ** 20} MB in total.`);
+    if (state.restart && !state.references.length) throw new Error("Add the reference files that the review could not read.");
+    const references = await Promise.all(state.references.map(async (f) => ({ name: f.name, data: await base64Of(f) })));
+    // A restart sends no problem: the server takes it from the earlier run's manifest.
+    const source = state.restart
+      ? { seed_from: state.restart.run, seed_branch: state.restart.branches > 1 ? Number($("p-restart-branch").value) : null, keep_references: $("p-keep-refs").checked }
+      : { problem: $("p-problem").value };
     const run = await api("/api/runs", { method: "POST", body: JSON.stringify({
-      kind: "prove", name: $("p-name").value, problem: $("p-problem").value,
+      kind: "prove", name: $("p-name").value, ...source, references,
       settings: { prove: { generator_model: $("p-gmodel").value, generator_reasoning_effort: $("p-geffort").value,
         verifier_model: $("p-vmodel").value, verifier_reasoning_effort: $("p-veffort").value,
         max_rounds: Number($("p-rounds").value), generation_branches: Number($("p-branches").value) } } }) });
+    state.references = []; renderReferences();
+    if (state.restart) cancelRestart();
     showTab("runs"); openRun(run.name);
   } catch (e) { $("p-error").textContent = e.message; }
   finally { $("p-start").disabled = false; }
+}
+
+// ---- reference files and restarts -------------------------------------------------
+// The chosen files are read here and sent with the job; the server writes them into the
+// run folder. The desktop window's file dialog cannot choose a folder, so a folder is
+// added by selecting all of its files.
+const MAX_REFERENCE_BYTES = 256 * 2 ** 20;
+function fileSize(bytes) { return bytes < 2 ** 20 ? `${Math.ceil(bytes / 1024)} KB` : `${(bytes / 2 ** 20).toFixed(1)} MB`; }
+function renderReferences() {
+  $("p-refs").innerHTML = state.references.map((f, i) => `<div class="row" style="margin:4px 0"><code>${esc(f.name)}</code><span class="muted">${esc(fileSize(f.size))}</span><button class="secondary" data-remove-reference="${i}">Remove</button></div>`).join("");
+}
+function pickReferences() {
+  const input = $("p-refs-file");
+  input.onchange = () => {
+    for (const file of input.files) {
+      // Same name as an earlier choice: the newer file replaces it.
+      state.references = state.references.filter((f) => f.name.toLowerCase() !== file.name.toLowerCase());
+      state.references.push(file);
+    }
+    input.value = "";
+    renderReferences();
+  };
+  input.click();
+}
+function base64Of(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => { const url = String(reader.result); resolve(url.slice(url.indexOf(",") + 1)); };
+    reader.onerror = () => reject(new Error(`Could not read ${file.name}.`));
+    reader.readAsDataURL(file);
+  });
+}
+// Prefills the prove form to start a new run from run `d`'s latest draft; `d` is its detail.
+function beginRestart(d) {
+  const inconclusive = d.inconclusive_reviews || [];
+  const latest = inconclusive[inconclusive.length - 1] || {};
+  const branches = Math.min(Math.max(Math.floor(Number(d.generation_branches)) || 1, 1), 64);
+  state.restart = { run: d.name, branches };
+  $("p-restart-text").innerHTML = `Restarting from run <b>${esc(d.name)}</b>. The new run first reviews that run's latest draft with the reference files added below, without generating anything; unless that review hands the proof off, generation continues in a fresh session. The problem stays the earlier run's, which is left unchanged. The settings below apply to the new run.`;
+  $("p-restart-branch").innerHTML = Array.from({ length: branches }, (_, i) => `<option value="${i + 1}">${i + 1}</option>`).join("");
+  $("p-restart-branch").value = String(latest.branch || 1);
+  $("p-restart-branch-row").classList.toggle("hidden", branches <= 1);
+  const kept = d.references || [];
+  $("p-keep-label").textContent = `Keep the earlier run's ${kept.length} reference file${kept.length === 1 ? "" : "s"}: ${kept.join(", ")}`;
+  $("p-keep-row").classList.toggle("hidden", !kept.length);
+  $("p-keep-refs").checked = true;
+  $("p-name").value = `${d.name}-with-refs`;
+  $("p-problem").value = (d.inputs && d.inputs.problem) || ""; $("p-problem").readOnly = true;
+  $("p-load").classList.add("hidden");
+  $("p-refs-label").textContent = "Reference files (add the source the review could not read)";
+  $("p-start").textContent = "Restart with references";
+  $("p-restart").classList.remove("hidden");
+  showTab("prove");
+}
+function cancelRestart() {
+  state.restart = null;
+  $("p-restart").classList.add("hidden");
+  $("p-problem").readOnly = false; $("p-problem").value = ""; $("p-name").value = "";
+  $("p-load").classList.remove("hidden");
+  $("p-refs-label").textContent = "Reference files (optional)";
+  $("p-start").textContent = "Start proving";
 }
 
 // ---- runs list ----------------------------------------------------------------
@@ -686,6 +768,7 @@ async function refreshRun(full) {
         <div class="muted" id="rd-summary"></div>
         <div class="muted">Folder: <code>${esc(d.path)}</code></div>
         <div class="error" id="rd-error"></div><div id="rd-auto-report" class="muted"></div><div id="rd-draft-status" class="muted"></div>
+        <div id="rd-restart"></div>
       </div>
       ${d.kind === "prove" ? `<div class="panel" id="rd-proof-panel"><div class="row" style="margin:0 0 12px"><h2 style="margin:0">Proof ready for human review</h2><span style="flex:1"></span><button class="secondary" id="rd-proof-copy" onclick="copyRaw('proof', this)">Copy source</button></div><div class="notice">The verifier finished with no unresolved issue. This is a handoff for a human reader, not a certificate. Hashes are in <code>handoff.json</code>.</div><details open><summary>Rendered</summary><div class="md" id="rd-proof"></div></details><details><summary>Source (Markdown with LaTeX math)</summary><pre id="rd-proof-src"></pre></details></div>` : ""}
       ${d.kind === "verify" ? `<div class="panel" id="rd-focus-panel"><h2>Question prepared from the paper</h2><div id="rd-focus"></div></div>` : ""}
@@ -696,7 +779,7 @@ async function refreshRun(full) {
       <div class="panel"><details><summary>Process log (stderr)</summary><pre id="rd-stderr"></pre></details></div>`;
     const inputs = d.inputs || {};
     $("rd-inputs").innerHTML = d.kind === "prove"
-      ? `<h3>Problem</h3>${numbered(inputs.problem)}`
+      ? `<div id="rd-seed"></div><h3>Problem</h3>${numbered(inputs.problem)}<div id="rd-references"></div>`
       : `<h3>Question</h3>${numbered(inputs.question)}<h3>Candidate solution (line numbers as cited in feedback)</h3>${numbered(inputs.solution)}`;
     state.eventsOffset = 0; $("rd-events").innerHTML = "";
   }
@@ -715,6 +798,16 @@ async function refreshRun(full) {
     else $("rd-proof-panel").classList.add("hidden");
     $("rd-report-title").textContent = d.latest_review ? "Latest review feedback" : "Latest review feedback (none yet)";
     $("rd-reviews").innerHTML = (d.reviews || []).map((r, i) => `<tr class="clickable" data-open-review="${esc(r.key)}"><td>${i + 1}</td><td>${decisionBadge(r.decision)}</td><td>${esc(r.run_status)}</td><td>${esc(r.feedback_count)}</td><td class="muted">${when(r.updated_at)}</td></tr>`).join("") || `<tr><td colspan="5" class="muted">No candidate has been reviewed yet.</td></tr>`;
+    $("rd-seed").innerHTML = d.seed ? `<p class="muted">Started from the latest draft of branch ${esc(d.seed.branch)} of <code>${esc(d.seed.run_dir)}</code>.</p>` : "";
+    $("rd-references").innerHTML = (d.references || []).length ? `<h3>Reference files</h3><p>${d.references.map((r) => `<code>${esc(r)}</code>`).join(" · ")}</p>` : "";
+    // A review that ended inconclusive (for example, a cited source it could not read)
+    // can be retried from the same draft in a new run once the user has the source.
+    const inconclusive = d.inconclusive_reviews || [];
+    const last = inconclusive[inconclusive.length - 1];
+    state.restartFrom = last && !d.active && d.status !== "ready_for_human" ? d : null;
+    $("rd-restart").innerHTML = state.restartFrom
+      ? `<div class="notice" style="margin:12px 0 0">The review in round ${esc(last.round)}${d.generation_branches > 1 ? ` of branch ${esc(last.branch)}` : ""} ended inconclusive: it could not settle part of the draft, for example a cited source it could not read. If you have that source, start a new run that reviews this run's latest draft with it.<div class="row"><button class="secondary" data-restart-run>Restart with references…</button></div></div>`
+      : "";
   }
   if (d.kind === "verify") {
     const panel = $("rd-focus-panel");
@@ -850,7 +943,10 @@ document.addEventListener("click", (event) => {
   const run = target && target.closest("[data-open-run]");
   if (run) { openRun(run.dataset.openRun); return; }
   const review = target && target.closest("[data-open-review]");
-  if (review) openReview(review.dataset.openReview);
+  if (review) { openReview(review.dataset.openReview); return; }
+  const remove = target && target.closest("[data-remove-reference]");
+  if (remove) { state.references.splice(Number(remove.dataset.removeReference), 1); renderReferences(); return; }
+  if (target && target.closest("[data-restart-run]") && state.restartFrom) beginRestart(state.restartFrom);
 });
 
 // ---- boot ---------------------------------------------------------------------

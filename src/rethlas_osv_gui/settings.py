@@ -291,7 +291,15 @@ def paper_argv(
     return argv
 
 
-def prove_argv(run_dir: Path, settings: dict, problem: Path) -> list[str]:
+def prove_argv(
+    run_dir: Path,
+    settings: dict,
+    problem: Path,
+    *,
+    references: Path | None = None,
+    seed_from: Path | None = None,
+    seed_branch: int | None = None,
+) -> list[str]:
     """The exact ``rethlas-osv`` command for a GUI run."""
     p = settings["prove"]
     argv = [
@@ -336,6 +344,12 @@ def prove_argv(run_dir: Path, settings: dict, problem: Path) -> list[str]:
         argv.append("--root-only")
     elif not p["early_stop"]:
         argv.append("--no-early-stop")
+    if references is not None:
+        argv += ["--references", str(references)]
+    if seed_from is not None:
+        argv += ["--seed-from", str(seed_from)]
+        if seed_branch is not None:
+            argv += ["--seed-branch", str(seed_branch)]
     return argv
 
 

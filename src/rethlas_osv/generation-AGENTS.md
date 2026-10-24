@@ -9,7 +9,9 @@ the verifier runs separately after your turn. Read only inside this workspace.
 - `problem.md` is the authoritative complete original question. Preserve its assumptions,
   domain, quantifiers, and all requested conclusions. Never edit this input.
 - If `references/` exists, read its `.md`, `.tex`, `.txt`, and extracted PDF text before
-  external search. These references are context, not verified premises.
+  external search. These references are context, not verified premises. The verifier
+  can read the same files; when the draft relies on one, cite its file name under
+  `references/` together with the exact page, theorem, or section.
 - The working candidate is `results/blueprint.md`. Always save the entire current draft there, including partial progress and remaining obligations,
   but set `candidate_ready=true` only for a full candidate solution to the whole question.
 - Your final response must match the supplied JSON schema: `candidate_ready` and

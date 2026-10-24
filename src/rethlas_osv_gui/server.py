@@ -26,6 +26,7 @@ from osverifier.storage import atomic_text, read_json
 from osverifier_reports.paper_prepare import MODES
 from osverifier_reports.writer import source_snapshot
 
+from . import references as reference_files
 from . import runs as run_tools
 from .jobs import JobManager
 from .replay import ReplayError, rebuild_command
@@ -306,16 +307,91 @@ class App:
                 directory, settings, inputs / "question.md", inputs / "solution.md", directory.name
             )
         else:
-            problem = str(body.get("problem") or "")
-            if not problem.strip():
-                raise ApiError(HTTPStatus.BAD_REQUEST, "the problem statement is required")
+            try:
+                uploads = reference_files.decode_uploads(body.get("references"))
+            except ValueError as exc:
+                raise ApiError(HTTPStatus.BAD_REQUEST, str(exc)) from exc
+            seed = self.seed(body, uploads) if body.get("seed_from") is not None else None
+            if seed is None:
+                problem, kept = str(body.get("problem") or ""), {}
+                if not problem.strip():
+                    raise ApiError(HTTPStatus.BAD_REQUEST, "the problem statement is required")
+            else:
+                problem, kept = seed["problem"], seed["references"]
+            try:
+                files = reference_files.combine(uploads, kept)
+            except ValueError as exc:
+                raise ApiError(HTTPStatus.BAD_REQUEST, str(exc)) from exc
             atomic_text(inputs / "problem.md", problem)
-            argv = prove_argv(directory, settings, inputs / "problem.md")
+            argv = prove_argv(
+                directory,
+                settings,
+                inputs / "problem.md",
+                references=reference_files.write(inputs / reference_files.DIRECTORY, files),
+                seed_from=seed and seed["run_dir"],
+                seed_branch=seed and seed["branch"],
+            )
         try:
             self.jobs.start(directory, kind, argv, settings, resume=False)
         except (OSError, RuntimeError) as exc:
             raise ApiError(HTTPStatus.CONFLICT, str(exc)) from exc
         return run_tools.run_summary(directory, self.jobs)
+
+    def seed(self, body: dict, uploads: dict) -> dict:
+        """The earlier run whose latest draft a restart reviews first, checked before any write.
+
+        The problem is taken from that run's frozen manifest, never from the request: the
+        runner refuses a seed whose problem differs.
+        """
+        name = body.get("seed_from")
+        if not isinstance(name, str):
+            raise ApiError(HTTPStatus.BAD_REQUEST, "seed_from must name a run")
+        parent = self.run_dir(name)
+        provenance = run_tools.provenance(parent)
+        width = provenance.get("generation_branches", 1)
+        if (
+            run_tools.detect_kind(parent) != "prove"
+            or "generator" not in provenance
+            or not isinstance(provenance.get("question"), str)
+            or type(width) is not int
+            or width < 1
+        ):
+            raise ApiError(HTTPStatus.BAD_REQUEST, "only a started prove run can be restarted")
+        if self.jobs.is_active(parent):
+            raise ApiError(
+                HTTPStatus.CONFLICT, "that run is still in progress; cancel it before restarting"
+            )
+        if not uploads:
+            raise ApiError(
+                HTTPStatus.BAD_REQUEST, "add the reference files that the review could not read"
+            )
+        branch = body.get("seed_branch")
+        if branch in (None, ""):
+            branch = None
+            if width != 1:
+                raise ApiError(
+                    HTTPStatus.BAD_REQUEST,
+                    f"that run has {width} branches; choose the branch to restart from",
+                )
+        elif isinstance(branch, bool) or not re.fullmatch(r"\d{1,9}", str(branch)) or not (
+            1 <= int(branch) <= width
+        ):
+            raise ApiError(HTTPStatus.BAD_REQUEST, f"seed_branch must be between 1 and {width}")
+        else:
+            branch = int(branch)
+        keep = body.get("keep_references", False)
+        if not isinstance(keep, bool):
+            raise ApiError(HTTPStatus.BAD_REQUEST, "keep_references must be true or false")
+        try:
+            kept = reference_files.recorded(parent, provenance) if keep else {}
+        except ValueError as exc:
+            raise ApiError(HTTPStatus.BAD_REQUEST, str(exc)) from exc
+        return {
+            "run_dir": parent,
+            "branch": branch,
+            "problem": provenance["question"],
+            "references": kept,
+        }
 
     def resume_run(self, name: str, body: dict) -> dict:
         directory = self.run_dir(name)

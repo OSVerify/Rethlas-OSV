@@ -113,6 +113,13 @@ def _inside_run(value: str, context: _Context) -> None:
         raise ReplayError(f"the stored command reads a file outside this run: {value}")
 
 
+def _sibling_run(value: str, context: _Context) -> None:
+    # The GUI restarts only from another run in its own runs folder, beside this one.
+    path = _absolute(value)
+    if path == context.run_dir or path.parent != context.run_dir.parent:
+        raise ReplayError(f"the stored command seeds from a folder outside this runs folder: {value}")
+
+
 def _which(value: str) -> Path | None:
     found = shutil.which(value)
     return Path(found).resolve() if found else None
@@ -203,6 +210,10 @@ PROVE = {
     "--max-issues": _int(1),
     "--root-only": SWITCH,
     "--no-early-stop": SWITCH,
+    "--references": _inside_run,
+    # Kept on resume: a start interrupted before the manifest must stay seeded.
+    "--seed-from": _sibling_run,
+    "--seed-branch": _int(1),
 }
 
 

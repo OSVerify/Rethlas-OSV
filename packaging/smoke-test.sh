@@ -2,7 +2,8 @@
 # Exercise a compiled bundle without any model call:
 #   1. --entry dispatch runs the offline demo review through the bundled core
 #   2. the literature helper starts and exercises the bundled reference-store lock
-#   3. the desktop server starts, reports itself, and prefers the bundled Codex
+#   3. its --supplied mode serves only a frozen user-supplied reference snapshot
+#   4. the desktop server starts, reports itself, and prefers the bundled Codex
 # Usage: packaging/smoke-test.sh <path-to-executable>
 set -euo pipefail
 BIN="${1:?path to the Rethlas-OSV executable}"
@@ -47,6 +48,39 @@ retrieval = json.loads(replies[1]["result"]["content"][0]["text"])["retrieval"]
 assert retrieval["status"] == "unresolved" and "Non-public source address" in retrieval["reason"], retrieval
 assert json.loads((root / "references/store-version.json").read_text()) == {"version": 5}
 print("literature helper: updated tools, file lock and private-address guard passed")
+PY
+
+echo "== supplied-reference reader"
+python3 - "$BIN" "$HOME_DIR/supplied" <<'PY'
+import hashlib, json, subprocess, sys
+from pathlib import Path
+
+root = Path(sys.argv[2])
+body = "Lemma 2. Every monotone bounded sequence converges.\n".encode()
+(root / "snapshot/files").mkdir(parents=True)
+(root / "snapshot/files/note.txt").write_bytes(body)
+entry = {"name": "note.txt", "sha256": hashlib.sha256(body).hexdigest(), "bytes": len(body), "format": "text"}
+(root / "snapshot/catalogue.json").write_text(json.dumps({"schema_version": 1, "references": [entry]}))
+requests = [
+    {"jsonrpc": "2.0", "id": 1, "method": "tools/list"},
+    {"jsonrpc": "2.0", "id": 2, "method": "tools/call", "params": {
+        "name": "read_supplied_reference", "arguments": {"reference": "note.txt", "query": "monotone"}}},
+    {"jsonrpc": "2.0", "id": 3, "method": "tools/call", "params": {
+        "name": "read_supplied_reference", "arguments": {"reference": "../snapshot/catalogue.json"}}},
+]
+result = subprocess.run(
+    [sys.argv[1], "--entry", "osverifier_reports.reference_tools", "--supplied", str(root / "snapshot"),
+     "--journal", str(root / "calls.jsonl"), "--work-dir", str(root / "reads")],
+    input="".join(json.dumps(request) + "\n" for request in requests),
+    text=True, capture_output=True, timeout=30,
+)
+assert result.returncode == 0, result.stderr
+replies = [json.loads(line) for line in result.stdout.splitlines()]
+assert [t["name"] for t in replies[0]["result"]["tools"]] == ["list_supplied_references", "read_supplied_reference"]
+passage = json.loads(replies[1]["result"]["content"][0]["text"])
+assert passage["text_match_found"] and "monotone bounded" in passage["text"], passage
+assert replies[2]["result"]["isError"], replies[2]  # only catalogue names are readable
+print("supplied-reference reader: tools, literal passage and name confinement passed")
 PY
 
 echo "== memory server (Rethlas MCP, minimal environment as Codex spawns it)"

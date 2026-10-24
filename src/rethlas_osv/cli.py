@@ -23,7 +23,8 @@ def parser():
     p.add_argument(
         "--references",
         type=Path,
-        help="Optional directory; defaults to the problem's sibling .refs directory if present",
+        help="Optional directory; defaults to the problem's sibling .refs directory if present. "
+        "The generator and the verifier's proposer, validator and auditor can read these files",
     )
     p.add_argument("--run-dir", type=Path, required=True)
     p.add_argument("--generator-model", default=DEFAULT_MODEL, help=f"default {DEFAULT_MODEL}; `osverify models` lists choices")
@@ -74,6 +75,19 @@ def parser():
         action="store_true",
         help="Continue reviewing remaining issues and segments after an audited REJECT; "
         "incompatible with --root-only; READY_FOR_HUMAN still stops the experiment",
+    )
+    p.add_argument(
+        "--seed-from",
+        type=Path,
+        metavar="RUN_DIR",
+        help="Start this new run from another run's latest draft of the same problem: round 1 "
+        "reviews that draft with this run's references, then generation continues in a fresh "
+        "session. The other run is only read",
+    )
+    p.add_argument(
+        "--seed-branch",
+        type=int,
+        help="With --seed-from: the branch to take the draft from when that run has several",
     )
     p.add_argument(
         "--prepare-only",
@@ -130,7 +144,12 @@ def main(argv=None):
             event_sink=lambda row: print(json.dumps(row, ensure_ascii=False), flush=True),
         )
         result = experiment.run(
-            args.problem, args.run_dir, references, prepare_only=args.prepare_only
+            args.problem,
+            args.run_dir,
+            references,
+            prepare_only=args.prepare_only,
+            seed_from=args.seed_from,
+            seed_branch=args.seed_branch,
         )
         print(json.dumps(result.model_dump(mode="json"), ensure_ascii=False, indent=2), flush=True)
         if args.prepare_only and result.status == "running":

@@ -55,6 +55,13 @@ def _text(path: Path, limit: int | None = None) -> str | None:
     return text
 
 
+def provenance(run_dir: Path) -> dict:
+    """The frozen ``provenance`` of a run's manifest, or {} when there is none to read."""
+    manifest = _json(run_dir / "manifest.json")
+    frozen = manifest.get("provenance") if isinstance(manifest, dict) else None
+    return frozen if isinstance(frozen, dict) else {}
+
+
 def detect_kind(run_dir: Path) -> str | None:
     job = read_job(run_dir)
     if job and job.get("kind") in ("verify", "prove"):
@@ -219,6 +226,25 @@ def _reviews(run_dir: Path) -> list[dict]:
     return rows
 
 
+def _inconclusive_reviews(run_dir: Path) -> list[dict]:
+    """Rounds whose review finished without settling the draft, e.g. an unreadable source."""
+    rows = []
+    try:
+        with (run_dir / "trajectory.jsonl").open("rb") as stream:
+            for line in stream:
+                if b'"review_inconclusive"' not in line:
+                    continue
+                try:
+                    event = json.loads(line)
+                except ValueError:
+                    continue
+                if isinstance(event, dict) and event.get("event") == "review_inconclusive":
+                    rows.append({"round": event.get("round"), "branch": event.get("branch")})
+    except OSError:
+        pass
+    return rows
+
+
 def _inputs(run_dir: Path, kind: str) -> dict:
     if kind == "prove":
         problem = _text(run_dir / "inputs" / "problem.md")
@@ -258,6 +284,13 @@ def run_detail(run_dir: Path, manager: JobManager) -> dict | None:
         detail["latest_review"] = latest
         detail["proof_text"] = _text(run_dir / "blueprint_ready_for_human.md")
         detail["handoff"] = _json(run_dir / "handoff.json")
+        # What a restart with references needs: see App.seed in server.py.
+        frozen = provenance(run_dir)
+        listed, seed = frozen.get("references"), frozen.get("seed")
+        detail["references"] = sorted(listed) if isinstance(listed, dict) else []
+        detail["seed"] = seed if isinstance(seed, dict) else None
+        detail["generation_branches"] = frozen.get("generation_branches", 1)
+        detail["inconclusive_reviews"] = _inconclusive_reviews(run_dir)
     else:
         detail["report_markdown"] = _text(run_dir / "report.md")
         detail["report"] = _json(run_dir / "report.json")

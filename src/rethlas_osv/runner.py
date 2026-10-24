@@ -23,6 +23,7 @@ from osverifier.storage import (
     read_json,
     run_lock,
 )
+from osverifier.supplied_references import finder_metadata
 
 from . import workspace as workspace_files
 from .contracts import (
@@ -97,13 +98,26 @@ class Experiment:
                 self.event_sink(row)
 
     def run(
-        self, problem: Path, directory: Path, references: Path | None = None, *, prepare_only=False
+        self,
+        problem: Path,
+        directory: Path,
+        references: Path | None = None,
+        *,
+        prepare_only=False,
+        seed_from: Path | None = None,
+        seed_branch: int | None = None,
     ):
+        """``seed_from`` starts a new run from another run's latest draft (see ``seed_record``)."""
         directory = directory.expanduser().resolve()
         with run_lock(directory):
-            return self._run(problem, directory, references, prepare_only=prepare_only)
+            return self._run(
+                problem, directory, references, prepare_only=prepare_only,
+                seed_from=seed_from, seed_branch=seed_branch,
+            )
 
-    def _run(self, problem, directory, references, *, prepare_only=False):
+    def _run(
+        self, problem, directory, references, *, prepare_only=False, seed_from=None, seed_branch=None
+    ):
         try:
             question = problem.read_text(encoding="utf-8")
         except UnicodeDecodeError as exc:
@@ -118,10 +132,13 @@ class Experiment:
             if not references.is_dir():
                 raise ValueError("reference directory does not exist")
             for p in sorted(references.rglob("*")):
+                if finder_metadata(p):
+                    continue
                 if p.is_symlink():
                     raise ValueError("reference snapshots must not contain symlinks")
                 if p.is_file():
                     ref_files[str(p.relative_to(references))] = sha(p)
+        seed = self.seed_record(directory, question, seed_from, seed_branch)
         frozen = {
             "question": question,
             "references": ref_files,
@@ -135,6 +152,8 @@ class Experiment:
             "generation_branches": self.config.generation_branches,
             "code_sha256": code_fingerprint(),
         }
+        if seed is not None:
+            frozen["seed"] = seed
         manifest = {"fingerprint": digest(frozen), "provenance": frozen}
         if (directory / "manifest.json").exists():
             if read_json(directory / "manifest.json") != manifest:
@@ -142,6 +161,12 @@ class Experiment:
                     "problem, references, code, backend or search policy changed; use a new run directory"
                 )
         else:
+            if seed is not None:
+                # Copied before the manifest exists, so an interrupted start can simply rerun.
+                parent = Path(seed["run_dir"])
+                (directory / "inputs/seed").mkdir(parents=True, exist_ok=True)
+                shutil.copyfile(parent / "manifest.json", directory / "inputs/seed/manifest.json")
+                shutil.copyfile(parent / seed["generation_artifact"], directory / "inputs/seed/generation.json")
             atomic_json(directory / "manifest.json", manifest)
             atomic_text(directory / "inputs/problem.md", question)
             for rel in ref_files:
@@ -153,6 +178,18 @@ class Experiment:
         for rel, expected in ref_files.items():
             if sha(directory / "inputs/references" / rel) != expected:
                 raise FrozenRunMismatch("frozen reference snapshot changed")
+        # Reviews read the whole directory, so a file the manifest never recorded must not appear.
+        stored = directory / "inputs/references"
+        present = {str(p.relative_to(stored)) for p in stored.rglob("*") if not p.is_dir() and not finder_metadata(p)}
+        if present != set(ref_files):
+            raise FrozenRunMismatch("frozen reference snapshot changed")
+        if seed is not None and (
+            sha(directory / "inputs/seed/manifest.json") != seed["manifest_sha256"]
+            or sha(directory / "inputs/seed/generation.json") != seed["generation_sha256"]
+        ):
+            raise FrozenRunMismatch("frozen seed snapshot changed")
+        # The verifier reads the same frozen files as the generator, with its own provenance.
+        review_references = directory / "inputs/references" if ref_files else None
         if (directory / "handoff.json").exists():
             return self.check_handoff(directory)
         (directory / "interruption.json").unlink(missing_ok=True)
@@ -170,6 +207,8 @@ class Experiment:
             }
             for branch in range(1, self.config.generation_branches + 1)
         }
+        if seed is not None:
+            self.plant_seed(directory, branches, seed)
         state = ExperimentResult(
             status="running",
             rounds_completed=0,
@@ -178,14 +217,16 @@ class Experiment:
 
         def save():
             # Count persisted successful generation turns, including pending reviews.
+            # A seeded draft was generated by another run, so it is not counted here.
             artifacts = [
-                path
+                read_json(path)
                 for branch in branches.values()
                 for path in branch["directory"].glob("rounds/*/generation.json")
             ]
-            state.generation_turns_completed = len(artifacts)
+            generated = [saved for saved in artifacts if "seed" not in saved]
+            state.generation_turns_completed = len(generated)
             state.candidates_generated = sum(
-                read_json(path)["output"]["turn"]["candidate_ready"] for path in artifacts
+                saved["output"]["turn"]["candidate_ready"] for saved in generated
             )
             atomic_json(directory / "summary.json", state.model_dump(mode="json"))
             return state
@@ -246,7 +287,7 @@ class Experiment:
                             raise FrozenRunMismatch("stalled continuation artifacts changed")
                         report = read_report(read_json(turn_dir / "stalled-report.json"))
                     else:
-                        report = self.verify_candidate(request, review_dir)
+                        report = self.verify_candidate(request, review_dir, review_references)
                     self.emit(
                         directory,
                         "verification_finished",
@@ -373,7 +414,7 @@ class Experiment:
             else directory / "branches" / f"{branch:04d}"
         )
 
-    def verify_candidate(self, request, review_dir):
+    def verify_candidate(self, request, review_dir, references=None):
         verifier = self.verifier
         if isinstance(verifier.backend, CodexBackend):
             # Rejection cancels a review's backend. Its stop state must not leak to
@@ -382,7 +423,89 @@ class Experiment:
             if backend.identity != verifier.backend.identity:
                 raise FrozenRunMismatch("verifier backend changed during experiment")
             verifier = type(verifier)(backend, verifier.config)
-        return verifier.verify(request, review_dir)
+        if references is None:
+            return verifier.verify(request, review_dir)
+        return verifier.verify(request, review_dir, references=references)
+
+    @staticmethod
+    def seed_record(directory, question, seed_from, seed_branch):
+        """Provenance of the draft a new run starts from, taken from an earlier run.
+
+        Read from the parent only when the run is created; afterwards the frozen manifest
+        is authoritative, and a seed can be neither added to nor changed in a run.
+        """
+        if seed_branch is not None and seed_from is None:
+            raise ValueError("--seed-branch requires --seed-from")
+        if (directory / "manifest.json").exists():
+            seed = read_json(directory / "manifest.json")["provenance"].get("seed")
+            if seed_from is not None and (
+                seed is None
+                or Path(seed["run_dir"]) != seed_from.expanduser().resolve()
+                or seed_branch not in (None, seed["branch"])
+            ):
+                raise FrozenRunMismatch("a run's seed cannot be added or changed; use a new run directory")
+            return seed
+        if seed_from is None:
+            return None
+        parent = seed_from.expanduser().resolve()
+        if parent == directory or not (parent / "manifest.json").is_file():
+            raise ValueError("--seed-from must name another existing Rethlas-OSV run directory")
+        provenance = read_json(parent / "manifest.json")["provenance"]
+        if "generator" not in provenance:
+            raise ValueError("--seed-from must name another existing Rethlas-OSV run directory")
+        if provenance["question"] != question:
+            raise ValueError("the seed run has a different problem")
+        width = provenance.get("generation_branches", 1)
+        branch = seed_branch if seed_branch is not None else 1 if width == 1 else None
+        if branch is None or not 1 <= branch <= width:
+            raise ValueError(f"the seed run has {width} branches; choose one with --seed-branch")
+        branch_dir = parent if width == 1 else parent / "branches" / f"{branch:04d}"
+        drafts = sorted(branch_dir.glob("rounds/*/generation.json"))
+        if not drafts:
+            raise ValueError("the seed run has no generated draft yet")
+        saved = read_json(drafts[-1])
+        if digest(saved["output"]) != saved["sha256"]:
+            raise FrozenRunMismatch("the seed run's generation artifact changed")
+        return {
+            "run_dir": str(parent),
+            "manifest_sha256": sha(parent / "manifest.json"),
+            "branch": branch,
+            "generation_artifact": drafts[-1].relative_to(parent).as_posix(),
+            "generation_sha256": sha(drafts[-1]),
+            "candidate_sha256": hashlib.sha256(
+                saved["output"]["candidate_solution"].encode()
+            ).hexdigest(),
+        }
+
+    def plant_seed(self, directory, branches, seed):
+        """Round 1 of every branch is the parent's draft, reviewed without a generation call.
+
+        Generation then starts a fresh session in round 2: the parent's session belongs to
+        another workspace.
+        """
+        parent = read_json(directory / "inputs/seed/generation.json")["output"]
+        output = {
+            "turn": parent["turn"],
+            "session_id": None,
+            "candidate_solution": parent["candidate_solution"],
+        }
+        planted = {"output": output, "sha256": digest(output), "seed": "inputs/seed/generation.json"}
+        for branch_id, branch in branches.items():
+            path = branch["directory"] / "rounds/0001/generation.json"
+            if path.exists():
+                if read_json(path) != planted:
+                    raise FrozenRunMismatch("seeded draft changed")
+                continue
+            atomic_json(path, planted)
+            self.emit(
+                directory,
+                "seeded_from_run",
+                branch=branch_id,
+                parent_run=seed["run_dir"],
+                parent_branch=seed["branch"],
+                parent_artifact=seed["generation_artifact"],
+                candidate_sha256=seed["candidate_sha256"],
+            )
 
     def generate_wave(self, directory, branches, index, search, question):
         # Validate/replay caches before dispatching any new model calls in this wave.
@@ -467,8 +590,10 @@ class Experiment:
             rejections = [a / "output-rejected.json" for a in attempts]
             rejected = next((read_json(r)["reason"] for r in reversed(rejections) if r.exists()), None)
             attempt = turn_dir / f"attempt-{len(attempts) + 1:04d}"
+            first_round = branch["directory"] / "rounds/0001/generation.json"
             prompt = self.prompt(
-                index, search, feedback, interrupted=bool(attempts), rejected=rejected
+                index, search, feedback, interrupted=bool(attempts), rejected=rejected,
+                seeded=index == 1 and "seed" in read_json(first_round),
             )
             if self.config.generation_branches > 1:
                 prompt = (
@@ -580,10 +705,12 @@ class Experiment:
         workspace_files.write_text(workspace, ".codex/agents/subgoal-prover.toml", config)
 
     @staticmethod
-    def prompt(index, search, feedback, *, interrupted=False, rejected=None):
+    def prompt(index, search, feedback, *, interrupted=False, rejected=None, seeded=False):
         start = (
             "Resume the interrupted generation turn."
             if interrupted
+            else "Continue from the draft in results/blueprint.md, which this run took from an earlier run of the same problem; this workspace's memory starts empty."
+            if seeded
             else "Continue the same mathematical investigation."
             if index
             else "Develop a solution to the complete question in problem.md."

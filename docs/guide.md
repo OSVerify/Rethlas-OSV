@@ -42,7 +42,27 @@ the core's. Closing the browser or the GUI does not stop a run; reopening the GU
 reattaches to it. Settings and run directories live under `~/.osverifier/` by default
 (`--home`, `--runs-dir`). Users sign in with their own Codex CLI account; the GUI only
 runs `codex login` and `codex login status` and stores no credentials. macOS and Linux
-are supported; PDF input is not, use LaTeX or Markdown text.
+are supported; PDF input is not, use LaTeX or Markdown text. Only reference files
+(below) may be PDFs or images.
+
+### Reference files and restarts
+
+**Prove a conjecture** also takes optional reference files: PDFs (scans too), images or
+text that the generator and the verifier can read. The page sends the chosen files to
+the GUI, which copies them into `gui-inputs/references/` in the new run folder and passes
+`--references` to `rethlas-osv`. Resume therefore never depends on where the files
+came from. The desktop window's file dialog cannot choose a folder, so add a folder by
+selecting all of its files; names must be distinct, and 256 MB is the total limit.
+
+When a prove run's review ends `review_inconclusive`, for example because it could not
+read a cited source, the run view offers **Restart with references**. It opens the prove
+form for a new run of the same problem: add the source you found, choose the branch
+when the old run had several, and keep or drop the old run's own reference files. The
+GUI then starts `rethlas-osv --seed-from <old run> [--seed-branch N] --references
+<new run>/gui-inputs/references`; see [Restart from a draft with new
+references](#restart-from-a-draft-with-new-references) for what the runner does. The old
+run is only read. Resume replays `--references` only when it points inside the run,
+and `--seed-from` only when it names another run folder beside this one.
 
 ### Desktop app
 
@@ -96,10 +116,15 @@ On macOS, a bundled CLI may be at `/Applications/ChatGPT.app/Contents/Resources/
 
 Reference files in a sibling `problem.refs/` directory are included automatically,
 or pass `--references /path/to/references`. PDFs require Poppler's `pdftotext` and
-are extracted in the generation workspace. These are generator context, not added
-assumptions: the verifier receives the original question and the submitted proof.
-If a private reference is essential, include its needed statement/justification in
-the proof so the verifier can assess it. Input and reference snapshots stay in `runs/`.
+are extracted in the generation workspace. The same frozen files are supplied to every
+review: the verifier's proposer, issue validator and feedback auditor can list and read
+them (PDF pages also as images, so scans are readable), alongside live web search. This
+is how a source that web search cannot retrieve, such as an old paper, can be checked.
+References are not added assumptions. A supplied file is a source to compare, not proof:
+the reviewers check that it is the cited work, then the cited statement, its hypotheses
+and how the proof applies it. Input and reference snapshots stay in `runs/`; a file
+that appears later in `inputs/references` is refused, while macOS `.DS_Store` and `._*`
+files are ignored.
 
 Useful options:
 
@@ -216,6 +241,28 @@ candidate text, agent messages, or tool results for quota language. Unknown fail
 formats remain ordinary execution errors. A successful resume clears the current
 interruption marker while retaining attempt-level history.
 
+### Restart from a draft with new references
+
+References are frozen inputs: adding one to an existing run directory is refused. When
+a review stays inconclusive because it could not read a cited source, and you have
+since found that source, start a **new** run from the old run's latest draft:
+
+```bash
+uv run rethlas-osv --problem /path/to/problem.md --references /path/to/references \
+  --seed-from runs/my-problem --run-dir runs/my-problem-with-refs
+```
+
+The problem must be identical. Round 1 of every branch reviews the old run's latest
+draft with the new references, without a generation call; a `READY_FOR_HUMAN` review
+hands off at once. Otherwise generation continues from round 2 in a fresh session, with
+that review's exact audited feedback and the draft in `results/blueprint.md`; workspace
+memory starts empty. Pass `--seed-branch N` when the old run had several branches. The
+old run is only read. The new manifest records its path, manifest hash, branch, the
+generation artifact and the draft's hash, and copies of both files are kept in
+`inputs/seed/`. A seed cannot be added to or changed in an existing run. The seeded
+round counts toward `--max-rounds` and `rounds_completed`, but not toward
+`generation_turns_completed`. The GUI offers this as [Restart with references](#reference-files-and-restarts).
+
 Quota exhaustion or Ctrl+C stops every parallel generation process. Existing runs remain
 frozen to their original code/configuration: continue them with the version that started
 them, or start a fresh run. SIGTERM/crash recovery remains unsupported; use Ctrl+C
@@ -229,11 +276,12 @@ Artifacts under the selected run directory:
 
 ```text
 manifest.json                    Frozen inputs, code and model/config identities
-inputs/                          Original question and references
+inputs/                          Original question, references and any seed draft
 generator/                       Rethlas skills, experiment memory and mutable draft
 rounds/0001/                     Generator prompt, command, JSONL events and snapshot
 rounds/0001/feedback.json         Only exact auditor-approved feedback and status
-reviews/<question-proof-hash>/   Full OSVerify artifacts and trajectory
+reviews/<question-proof-hash>/   Full OSVerify artifacts and trajectory, with any
+                                 supplied-references/ snapshot
 trajectory.jsonl                 Outer-loop transitions
 summary.json                     Status, last decision and completed rounds
 interruption.json                Current quota stop and manual-resume information

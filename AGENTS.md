@@ -40,7 +40,8 @@ The GUI lives in the separate `src/rethlas_osv_gui` package and must stay outsid
 installed OSVerify core) into every experiment manifest. It launches the CLIs as child processes, cancels with SIGINT, and resumes
 by replaying the stored command's validated arguments through the current entry point
 (`rethlas_osv_gui/replay.py`; never the stored executable); it never calls the verifier
-in-process or bypasses the CLI contracts. Only LaTeX/Markdown text input; no Windows support; users bring their
+in-process or bypasses the CLI contracts. Only LaTeX/Markdown text input, except prove-run
+reference files, which are copied into the run folder byte for byte; no Windows support; users bring their
 own Codex account.
 Helper processes (verifier, prover, memory server, paper extraction) must be spawned
 through `osverifier.frozen.python_module_command`, never a literal `python -m`, so the
