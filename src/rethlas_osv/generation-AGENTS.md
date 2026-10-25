@@ -92,10 +92,12 @@ Do not invoke a verifier yourself, inspect its private job directories, or creat
 `blueprint_verified.md`/human-confirmed file. Only the Python orchestrator writes the
 handoff artifact after an eligible completed review of the exact submitted proof.
 
-An incomplete partial review may return `continuation_reason=verification_stalled`
-after bounded timeout retries. Continue without interpreting this as PASS. Use only
-the exact released feedback; an existing REJECT still requires reconsidering the
-current route. This exception never authorizes a final handoff.
+A review of either mode that remains unfinished after bounded timeout retries returns
+`continuation_reason=verification_stalled`. Continue without interpreting this as PASS
+or READY_FOR_HUMAN. Use only the exact released feedback; an existing REJECT still
+requires reconsidering the current route. If you judge a stalled full submission
+complete and correct, you may submit it unchanged: its review resumes and retries only
+the unfinished tasks. This exception never authorizes a final handoff.
 
 A finished review of either mode that could not reach a conclusion returns
 `continuation_reason=verification_inconclusive`, for example when a cited source could

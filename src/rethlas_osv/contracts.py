@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from typing import Literal
 
+from osverifier.jobs import TIMEOUT_FAILURES
 from osverifier.models import ReviewReport, StrictModel
 from osverifier.workflow_models import WorkflowReport
 from pydantic import Field
@@ -53,9 +54,13 @@ def generator_feedback(report: ReviewReport) -> dict:
     }
 
 
-def stalled_partial_feedback(report: ReviewReport, directory):
-    """Allow continuation only for exhausted timeout jobs, never audit/contract failure."""
-    if report.mode != "partial" or report.run_status == "completed":
+def stalled_review_feedback(report: ReviewReport, directory):
+    """Allow continuation only for exhausted timeout jobs, never audit/contract failure.
+
+    Either mode continues; an unfinished review never hands off, and resubmitting the
+    same draft resumes the review, retrying only its unfinished jobs.
+    """
+    if report.run_status == "completed":
         return None
     if (directory / "interruption.json").exists():
         return None
@@ -74,18 +79,22 @@ def stalled_partial_feedback(report: ReviewReport, directory):
             return None
         from osverifier.storage import read_json
 
-        if read_json(failure).get("type") not in ("BackendStalled", "TimeoutExpired"):
+        if read_json(failure).get("type") not in TIMEOUT_FAILURES:
             return None
         failed.append(job.name)
     if not failed:
         return None
     return {
-        "mode": "partial",
+        "mode": report.mode,
         "decision": report.decision,
         "run_status": report.run_status,
         "continuation_reason": "verification_stalled",
         "review_complete": False,
-        "notice": "This review did not finish after bounded timeout retries. Continue with the exact audited feedback below; no PASS or correctness claim is implied. An existing REJECT still requires reconsidering the current route.",
+        "notice": (
+            "This review did not finish after bounded timeout retries. Continue with the exact audited feedback below; no PASS or correctness claim is implied. An existing REJECT still requires reconsidering the current route."
+            if report.mode == "partial"
+            else "This full-solution review did not finish after bounded timeout retries, so this round cannot hand off. Continue with the exact audited feedback below; no READY_FOR_HUMAN or correctness claim is implied. If you judge the submitted draft complete and correct, you may submit it unchanged: its review then resumes, retrying only the unfinished tasks."
+        ),
         "feedback": [item.model_dump(mode="json") for item in report.feedback],
         "human_confirmed": False,
         "stalled_jobs": failed,

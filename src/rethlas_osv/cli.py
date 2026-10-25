@@ -66,6 +66,13 @@ def parser():
     p.add_argument("--max-issues", type=int, default=None)
     p.add_argument("--max-attempts", type=int, default=2)
     p.add_argument(
+        "--verifier-timeout-retries",
+        type=int,
+        default=1,
+        help="Extra attempts a verifier call may earn by timing out; retries after a timeout "
+        "get doubled time limits (default: 1)",
+    )
+    p.add_argument(
         "--root-only",
         action="store_true",
         help="Use the legacy whole-solution verifier; default includes decomposition",
@@ -125,7 +132,8 @@ def main(argv=None):
             web_search=args.verifier_web_search,
         )
         config = dict(
-            workers=args.workers, max_issues=args.max_issues, max_attempts=args.max_attempts
+            workers=args.workers, max_issues=args.max_issues, max_attempts=args.max_attempts,
+            timeout_retries=args.verifier_timeout_retries,
         )
         verifier = (
             Verifier(backend, RunConfig(**config))

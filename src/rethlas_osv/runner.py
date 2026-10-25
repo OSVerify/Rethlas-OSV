@@ -33,7 +33,7 @@ from .contracts import (
     generator_feedback,
     inconclusive_feedback,
     read_report,
-    stalled_partial_feedback,
+    stalled_review_feedback,
 )
 
 ROOT = Path(__file__).parent
@@ -299,7 +299,7 @@ class Experiment:
                     if report.mode != mode or report.request_id != request.request_id:
                         raise FrozenRunMismatch("verifier returned a different request or mode")
                     state.last_decision = report.decision
-                    stalled_feedback = read_json(turn_dir / "feedback.json") if continuation.exists() else stalled_partial_feedback(report, review_dir) or inconclusive_feedback(report, review_dir)
+                    stalled_feedback = read_json(turn_dir / "feedback.json") if continuation.exists() else stalled_review_feedback(report, review_dir) or inconclusive_feedback(report, review_dir)
                     if report.run_status != "completed" and stalled_feedback is None:
                         state.status = "incomplete"
                         interruption = review_dir / "interruption.json"
@@ -330,7 +330,7 @@ class Experiment:
                             state.error = "Verification or its audit is unfinished. Resume this run before revising the proof."
                         return save()
                     if stalled_feedback is not None and "stalled_jobs" in stalled_feedback:
-                        self.emit(directory, "partial_review_stalled", round=index + 1, branch=branch_id, stalled_jobs=stalled_feedback["stalled_jobs"], decision=report.decision)
+                        self.emit(directory, "review_stalled", round=index + 1, branch=branch_id, mode=mode, stalled_jobs=stalled_feedback["stalled_jobs"], decision=report.decision)
                     elif stalled_feedback is not None:
                         self.emit(directory, "review_inconclusive", round=index + 1, branch=branch_id, mode=mode, decision=report.decision)
                     branch["feedback"] = stalled_feedback or generator_feedback(report)

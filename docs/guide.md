@@ -335,19 +335,25 @@ root/segment proposals, decomposition, deduplication, validation, and feedback a
 Feedback audits and validation take priority over queued proposals. Generation branch
 width remains separately controlled by `--generation-branches`.
 
-## Stalled partial reviews
+## Stalled reviews
 
 Verifier calls in Rethlas have an operational inactivity deadline of 300 seconds
 without item events. Set `--verifier-idle-timeout SECONDS`, or `0` to disable it.
-Silent reasoning can trigger this limit; it is not proof of a deadlock. The existing
-`--verifier-timeout` total deadline and `--max-attempts` bound still apply. Each
-retry uses a fresh call, while completed jobs retain their caches.
+Verifier calls request reasoning summaries, so a model that is still thinking keeps
+producing events; a call that falls silent for this long is more likely stuck than
+reasoning. The `--verifier-timeout` total deadline (900 seconds) and `--max-attempts`
+bound still apply. Each retry uses a fresh call, while completed jobs retain their
+caches. A call that times out earns an extra attempt (`--verifier-timeout-retries`,
+default 1), and once a job has timed out its later attempts, including those after a
+resume, run with doubled time limits.
 
-If partial review remains incomplete after timeout retries, the loop records
-`partial_review_stalled`, preserves the incomplete report and exact audited feedback,
-and continues generation with `continuation_reason=verification_stalled`. No PASS
-is manufactured, and existing REVISE/REJECT decisions remain intact. A hash-bound
-continuation receipt preserves the historical feedback on loop resume. The next
-iteration reviews the entire current draft; this is not incremental verification.
-Full-solution review still blocks handoff when unfinished. Quota, cancellation and
-non-timeout technical failures do not qualify for this continuation exception.
+If a review of either mode remains incomplete after these retries, the loop records
+`review_stalled`, preserves the incomplete report and exact audited feedback, and
+continues generation with `continuation_reason=verification_stalled`. No PASS or
+READY_FOR_HUMAN is manufactured, existing REVISE/REJECT decisions remain intact, and
+an unfinished full-solution review never hands off. A hash-bound continuation receipt
+preserves the historical feedback on loop resume. If the generator resubmits the same
+draft, its review resumes and retries only the unfinished tasks; a changed draft gets
+a new review of the entire draft (this is not incremental verification). Quota,
+cancellation and non-timeout technical failures do not qualify for this continuation
+exception.

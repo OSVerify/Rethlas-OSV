@@ -7,24 +7,47 @@ from rethlas_osv.runner import Experiment, LoopConfig
 
 
 @pytest.mark.parametrize('mode', ['partial', 'full_solution'])
-def test_timeout_continuation_is_partial_only(tmp_path, mode):
+def test_timeout_continuation_never_hands_off(tmp_path, mode):
     class TimeoutReviewer(Reviewer):
         def verify(self, request, directory):
             report = super().verify(request, directory)
             if report.run_status != 'completed':
                 atomic_json(directory / 'jobs/proposer/attempt-0002/failure.json', {'type': 'BackendStalled'})
             return report
+    p, run = problem(tmp_path), tmp_path / 'run'
     g = Generator([(mode == 'full_solution', 'Draft'), (True, 'Complete')])
     v = TimeoutReviewer([None, 'READY_FOR_HUMAN'])
-    result = Experiment(g, v, LoopConfig(2)).run(problem(tmp_path), tmp_path / 'run')
-    if mode == 'partial':
-        assert result.status == 'ready_for_human', result.error
-        assert len(g.calls) == 2
-        assert 'verification_stalled' in g.calls[1]['prompt']
-        first = read_json(tmp_path / 'run/rounds/0001/feedback.json')
-        assert first['decision'] is None and first['run_status'] == 'incomplete'
-    else:
-        assert result.status == 'incomplete' and len(g.calls) == 1
+    result = Experiment(g, v, LoopConfig(1)).run(p, run)
+    assert result.status == 'budget_exhausted', result.error
+    assert not (run / 'handoff.json').exists()
+    first = read_json(run / 'rounds/0001/feedback.json')
+    assert first['decision'] is None and first['run_status'] == 'incomplete' and first['mode'] == mode
+    assert first['continuation_reason'] == 'verification_stalled'
+    assert ('cannot hand off' in first['notice']) == (mode == 'full_solution')
+    result = Experiment(g, v, LoopConfig(2)).run(p, run)
+    assert result.status == 'ready_for_human', result.error
+    assert len(g.calls) == 2 and 'verification_stalled' in g.calls[1]['prompt']
+    assert (run / 'blueprint_ready_for_human.md').read_text() == 'Complete'
+
+
+def test_resubmitted_full_draft_resumes_its_stalled_review(tmp_path):
+    from test_rethlas_breadth import CachingReviewer
+
+    class RetryReviewer(CachingReviewer):
+        def verify(self, request, directory):
+            report = super().verify(request, directory)
+            if report.run_status != 'completed':
+                atomic_json(directory / 'jobs/proposer/attempt-0002/failure.json', {'type': 'TimeoutExpired'})
+            return report
+    p, run = problem(tmp_path), tmp_path / 'run'
+    g = Generator([(True, 'Same draft'), (True, 'Same draft')])
+    v = RetryReviewer([None, 'READY_FOR_HUMAN'])
+    result = Experiment(g, v, LoopConfig(2)).run(p, run)
+    assert result.status == 'ready_for_human' and result.rounds_completed == 2, result.error
+    # Both rounds reviewed the same draft in the same review directory.
+    assert len(list((run / 'reviews').iterdir())) == 1 and len(v.calls) == 2
+    assert (run / 'blueprint_ready_for_human.md').read_text() == 'Same draft'
+    assert read_json(run / 'rounds/0001/stalled-report.json')['run_status'] == 'incomplete'
 
 
 @pytest.mark.parametrize('failure', ['ValueError', 'BackendCancelled', 'QuotaExhausted'])
